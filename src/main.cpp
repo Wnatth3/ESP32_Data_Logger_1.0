@@ -35,7 +35,7 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-#define DebugMode  // Uncomment this line if you want to debug
+// #define DebugMode  // Uncomment this line if you want to debug
 // #define syncRtcWithNtp // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
