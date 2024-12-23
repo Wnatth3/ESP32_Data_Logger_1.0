@@ -254,45 +254,53 @@ void wifiManagerSetup() {
     deln("mounting FS...");
 
     if (SPIFFS.begin()) {
-        deln("mounted file system");
-        if (SPIFFS.exists("/config.json")) {
-            // file exists, reading and loading
-            deln("reading config file");
-            File configFile = SPIFFS.open("/config.json", "r");
-            if (configFile) {
-                deln("opened config file");
-                size_t size = configFile.size();
-                // Allocate a buffer to store contents of the file.
-                std::unique_ptr<char[]> buf(new char[size]);
-
-                configFile.readBytes(buf.get(), size);
-                JsonDocument json;
-                auto         deserializeError = deserializeJson(json, buf.get());
-                serializeJson(json, Serial);
-                if (!deserializeError) {
-                    deln("\nparsed json");
-                    strcpy(mqtt_server, json["mqtt_server"]);
-                    strcpy(mqtt_port, json["mqtt_port"]);
-                    strcpy(mqtt_user, json["mqtt_user"]);
-                    strcpy(mqtt_pass, json["mqtt_pass"]);
-                    if (json["ip"]) {
-                        deln("setting custom ip from config");
-                        strcpy(static_ip, json["ip"]);
-                        strcpy(static_gw, json["gateway"]);
-                        strcpy(static_sn, json["subnet"]);
-                        strcpy(static_dns, json["dns"]);
-                    } else {
-                        deln("no custom ip in config");
-                    }
-                } else {
-                    deln("failed to load json config");
-                }
-                // configFile.close();
+    deln("Mounted file system");
+    if (SPIFFS.exists("/config.json")) {
+        // File exists, reading and loading
+        deln("Reading config file");
+        File configFile = SPIFFS.open("/config.json", "r");
+        if (configFile) {
+            deln("Opened config file");
+            size_t size = configFile.size();
+            if (size > 1024) {
+                deln("Config file size is too large");
+                return;
             }
+            // Allocate a buffer to store contents of the file
+            std::unique_ptr<char[]> buf(new char[size]);
+            configFile.readBytes(buf.get(), size);
+
+            JsonDocument json;
+            DeserializationError error = deserializeJson(json, buf.get());
+            if (error) {
+                deln("Failed to parse config file");
+                return;
+            }
+
+            deln("Parsed JSON");
+            strcpy(mqtt_server, json["mqtt_server"]);
+            strcpy(mqtt_port, json["mqtt_port"]);
+            strcpy(mqtt_user, json["mqtt_user"]);
+            strcpy(mqtt_pass, json["mqtt_pass"]);
+
+            if (json.containsKey("ip")) {
+                deln("Setting custom IP from config");
+                strcpy(static_ip, json["ip"]);
+                strcpy(static_gw, json["gateway"]);
+                strcpy(static_sn, json["subnet"]);
+                strcpy(static_dns, json["dns"]);
+            } else {
+                deln("No custom IP in config");
+            }
+        } else {
+            deln("Failed to open config file");
         }
     } else {
-        deln("failed to mount FS");
+        deln("Config file does not exist");
     }
+} else {
+    deln("Failed to mount FS");
+}
     // end read
 
     WiFiManagerParameter custom_mqtt_server("server", "MQTT Server", mqtt_server, 16);
@@ -458,23 +466,15 @@ String strTime(DateTime t) {
     return t.toString(buff);
 }
 
+// Set the time to 0, 15, 30, 45 min
 int set15Min(byte a) {
-    if (a >= 0 && a <= 14) {
-        a = 15;
-    } else if (a >= 15 && a <= 29) {
-        a = 30;
-    } else if (a >= 30 && a <= 44) {
-        a = 45;
-    } else {
-        a = 0;
+    if (a >= 0 && a <= 59) {
+        return ((a / 15) + 1) * 15 % 60;
     }
-    return a;
+    return 0;
 }
 
-uint8_t roundSec(uint8_t sec) {
-    if (sec > 60) sec -= 60;
-    return sec;
-}
+uint8_t roundSec(uint8_t sec) { return sec > 60 ? sec - 60 : sec; }
 
 void SyncRtc() {
 #ifdef syncRtcWithNtp
@@ -489,6 +489,10 @@ void SyncRtc() {
     }
 #endif
 }
+
+// void SyncRtc2() {
+//     if (timeClient.getMinutes() != rtc.now().minute()) SyncRtc();
+// }
 
 void SetupAlarm() {
     if (!rtc.begin()) {
@@ -535,16 +539,8 @@ void SetupAlarm() {
 
 void IRAM_ATTR onRtcTrigger() { rtcTrigger = true; }
 
-// 15 minute match
-bool t15MinMatch(int tMin) {
-    switch (tMin) {
-        case 0:
-        case 15:
-        case 30:
-        case 45: return true; break;
-        default: return false; break;
-    }
-}
+// 15 minute match 0, 15, 30, and 45
+bool t15MinMatch(int tMin) { return tMin >= 0 && tMin % 15 == 0 && tMin < 60; }
 
 //----------------- Collect Data --------------//
 void ReadData() {
@@ -699,3 +695,6 @@ void loop() {
         fetchData();
     }
 }
+
+
+
