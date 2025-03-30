@@ -40,7 +40,7 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-#define _DEBUG_  // Uncomment this line if you want to debug
+// #define _DEBUG_  // Uncomment this line if you want to debug
 // #define syncRtcWithNtp // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
@@ -193,8 +193,10 @@ NTPClient timeClient(ntpUDP, "time.google.com", 25200 /*GMT +7*/);
 #define SQW_PIN 33  // pin 33 for external Wake Up (ext1)
 RTC_DS3231 rtc;
 
-byte tMin;
-bool rtcTrigger = false;
+uint8_t tMin;
+uint8_t setMin;
+uint8_t preheatTime;
+bool    rtcTrigger = false;
 
 //----------------- Sensors -------------------//
 // BME680 Temperature, Humidity, & Pressure Sensor
@@ -221,12 +223,16 @@ bsec_virtual_sensor_t sensorList[13] = {
 Bsec iaqSensor;
 
 // VEML7700 Illumination Sensor
-float             lux;
+float lux;
+
 Adafruit_VEML7700 veml = Adafruit_VEML7700();
 
 // MH-Z19B CO2 Sensor
-int            co2;
-MHZ19          myMHZ19;      // Constructor for library
+#define rxPin2 16
+#define txPin2 17
+int   co2;
+MHZ19 myMHZ19;  // Constructor for library
+
 HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial library, since we have 2 USARTS available
 
 // PMSA003A
@@ -235,24 +241,27 @@ HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial li
 uint16_t pm_01, pm_25, pm_10;
 SerialPM pms(PMSx003, pmsRX, pmsTX);
 
-// SGP41 Air Quality Sensor, VOC & NOx Index
 // SHT40 Temperature & Humidity Sensor
+float humiSht40;  // %RH
+float tempSht40;  // degreeC
+
+SensirionI2cSht4x sht40;
+
+// SGP41 Air Quality Sensor, VOC & NOx Index
 uint16_t conditioning_s = 10;
 char     errorMessage[256];
 
-float   humiSht40;  // %RH
-float   tempSht40;  // degreeC
 int32_t vocIdxSgp41;
 int32_t noxIdxSgp41;
 
-SensirionI2cSht4x sht40;
 SensirionI2CSgp41 sgp41;
 
 VOCGasIndexAlgorithm voc_algorithm;
 NOxGasIndexAlgorithm nox_algorithm;
 
 // AHT21
-float tempAht21, humiAht21;
+float tempAht21;
+float humiAht21;
 
 Adafruit_AHTX0 aht21;
 
@@ -264,6 +273,11 @@ uint16_t eco2Ena160;
 ScioSense_ENS160 ens160(ENS160_I2CADDR_1);  // 0x53
 
 //******************************** Tasks ************************************//
+void    Sgp41HeatingOn();
+void    Sgp41HeatingOff();
+TickTwo tSgp41HeatingOn(Sgp41HeatingOn, 500, 0, MILLIS);  // (function, interval, iteration, interval unit)
+TickTwo tSgp41HeatingOff(Sgp41HeatingOff, 0, 0, MILLIS);  // (function, interval, iteration, interval unit)
+
 void    wifiDisconnectedDetect();
 TickTwo tWifiDisconnectedDetect(wifiDisconnectedDetect, 300000, 0, MILLIS);
 
@@ -549,8 +563,10 @@ String strTime(DateTime t) {
     return t.toString(buff);
 }
 
+// uint8_t preheatTime(uint8_t setMin) { return setMin == 0 ? 57 : setMin -3;}
+
 // Set the time to 0, 15, 30, 45 min
-int set15Min(byte a) {
+uint8_t set15Min(uint8_t a) {
     if (a >= 0 && a <= 59) {
         return ((a / 15) + 1) * 15 % 60;
     }
@@ -597,9 +613,9 @@ void SetupAlarm() {
     SyncRtc();  // To ync RTC with NTP server. The internet connection is required.
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2023, 12, 9, 21, 59, 35));  // Manually set time
-
+#ifdef _DEBUG_
     Serial.println("\n\t" + strTime(rtc.now()));
-
+#endif
     rtc.disable32K();  // we don't need the 32K Pin, so disable it
     rtc.clearAlarm(1);
     rtc.clearAlarm(2);
@@ -616,14 +632,17 @@ void SetupAlarm() {
 #ifdef _DEBUG_
     Serial.println("tMin: " + String(tMin));
 #endif
-    int setMin = set15Min(tMin);
+    // uint8_t setMin = set15Min(tMin);
+    setMin      = set15Min(tMin);
+    preheatTime = setMin == 0 ? 58 : setMin - 2;
     rtc.setAlarm1(DateTime(2023, 2, 18, 0, setMin, 0), DS3231_A1_Minute);
     // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 0, 0), DS3231_A1_Minute);
     // rtc.setAlarm2(DateTime(2023, 2, 18, 0, 30, 0), DS3231_A2_Minute);
     // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 57, 0), DS3231_A1_Minute);
     // rtc.setAlarm2(DateTime(2023, 2, 18, 0, 27, 0), DS3231_A2_Minute);
 #ifdef _DEBUG_
-    Serial.println("Tringger next time: " + String(setMin) + "th min.");
+    Serial.print("Preheat Time: " + String(preheatTime) + "th min.");
+    Serial.println(" | Tringger next time: " + String(setMin) + "th min.");
 #endif
 #endif
 
@@ -698,6 +717,33 @@ void ReadSht40Sgp41() {
     } else {
         vocIdxSgp41 = voc_algorithm.process(srawVoc);
         noxIdxSgp41 = nox_algorithm.process(srawNox);
+    }
+}
+
+void Sgp41HeatingOn() {
+#ifdef _DEBUG_
+    if (tSgp41HeatingOn.counter() == 1) {
+        Serial.println("Sgp41HeatingOn: First Time");
+    }
+#endif
+    ReadSht40Sgp41();
+    uint8_t now = rtc.now().minute();
+    if (now == setMin) {
+        tSgp41HeatingOn.stop();
+        tSgp41HeatingOff.start();
+    }
+}
+
+void Sgp41HeatingOff() {
+#ifdef _DEBUG_
+    if (tSgp41HeatingOff.counter() == 1) {
+        Serial.println("Sgp41HeatingOff: First Time");
+    }
+#endif
+    uint8_t now = rtc.now().minute();
+    if (now == preheatTime) {
+        tSgp41HeatingOff.stop();
+        tSgp41HeatingOn.start();
     }
 }
 
@@ -859,11 +905,11 @@ void connectMqtt() {
 void CheckSensor(bool condition, String sensorName) {
     if (condition) {
 #ifdef _DEBUG_
-        Serial.print(sensorName + " : " + "Available");
+        Serial.println(sensorName + " : " + "Available");
 #endif
     } else {
 #ifdef _DEBUG_
-        Serial.print(sensorName + " : " + "Failed!");
+        Serial.println(sensorName + " : " + "Failed!");
 #endif
     }
 }
@@ -884,17 +930,17 @@ void setup() {
 
     // VEML7700
     CheckSensor(veml.begin(), "VEML7700");
-
     // MH-Z19B Init
+    // mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);       // (Uno example) device to MH-Z19 serial start
     mySerial.begin(9600);       // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);    // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();  // Turn auto calibration ON (OFF autoCalibration(false))
     // PMSA003
     pms.init();
-    // SGP41 & SHT40
+    // SHT40
     sht40.begin(Wire, SHT40_I2C_ADDR_44);
+    // SGP41
     sgp41.begin(Wire);
-    // CheckSensor(sht40.begin(Wire, SHT40_I2C_ADDR_44), "SHT40");
     // AHT21
     CheckSensor(aht21.begin(), "AHT21");
     // ENS160
@@ -910,6 +956,9 @@ void setup() {
     mqtt.setServer(mqtt_server, atoi(mqtt_port));
     tWifiDisconnectedDetect.start();
     tConnectMqtt.start();
+#ifndef _20secTest
+    tSgp41HeatingOff.start();
+#endif
 }
 //******************************** Loop *************************************//
 void loop() {
@@ -919,6 +968,10 @@ void loop() {
     server.handleClient();  // OTA Web Update
     tConnectMqtt.update();
     tReconnectMqtt.update();
+#ifndef _20secTest
+    tSgp41HeatingOn.update();
+    tSgp41HeatingOff.update();
+#endif
 
     if (rtcTrigger) {
         rtcTrigger = false;
