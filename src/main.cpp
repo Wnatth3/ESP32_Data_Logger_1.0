@@ -26,22 +26,23 @@ Log:
 #include <Wire.h>
 #include <ezLED.h>
 // Sensors
-#include "bsec.h"  // SD0 Pkn connect to GND
-#include <PMserial.h>
-#include "Adafruit_VEML7700.h"
-#include "MHZ19.h"
-#include <NOxGasIndexAlgorithm.h>
-#include <SensirionI2CSgp41.h>
-#include <SensirionI2cSht4x.h>
-#include <VOCGasIndexAlgorithm.h>
-#include <Adafruit_AHTX0.h>    // AHT21 - Adafruit AHTX0
-#include <ScioSense_ENS160.h>  // ENS160 - ENS160 Adafruit Fork
+#include "bsec.h"                  // SD0 Pkn connect to GND // BME680 - BSEC Software library
+#include <PMserial.h>              // PMSA003 - PMSerial - https://github.com/avaldebe/PMserial
+#include "Adafruit_VEML7700.h"     // VEML7700 - Adafruit VEML7700
+#include "MHZ19.h"                 // MH-Z19B - MH-Z19 - https://github.com/WifWaf/MH-Z19
+#include <SensirionI2CSgp41.h>     // SGP41 - Sensirion I2C SGP41
+#include <SensirionI2cSht4x.h>     // SHT40 - Sensirion I2C SHT4x
+#include <VOCGasIndexAlgorithm.h>  // SGP41 - Sensirian Gas Index Algorithm
+#include <NOxGasIndexAlgorithm.h>  // SGP41 - Sensirian Gas Index Algorithm
+#include <Adafruit_AHTX0.h>        // AHT21 - Adafruit AHTX0
+#include <ScioSense_ENS160.h>      // ENS160 - ENS160 Adafruit Fork - https://github.com/adafruit/ENS160_driver
+#include <DHT.h>                   // DHT22 - DHT Sensor library
 #include <TickTwo.h>
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
 // #define _DEBUG_  // Uncomment this line if you want to debug
-// #define syncRtcWithNtp // Uncomment this line if you want to sync RTC with NTP
+// #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
 //******************************** Global Variables *************************//
@@ -173,6 +174,10 @@ WebServer server(80);
 #define MQTT_PUB_aqiEns160      "esp32/ens160/aqi"
 #define MQTT_PUB_tvocEns160     "esp32/ens160/tvoc"
 #define MQTT_PUB_eco2Ens160     "esp32/ens160/eco2"
+#define MQTT_PUB_tempDht22      "esp32/dht22/temp"
+#define MQTT_PUB_humiDht22      "esp32/dht22/humi"
+
+#define MQTT_PUB_JSON "esp32/sensors/json"
 
 WiFiClient   mqttClient;
 PubSubClient mqtt(mqttClient);
@@ -200,10 +205,10 @@ bool    rtcTrigger = false;
 
 //----------------- Sensors -------------------//
 // BME680 Temperature, Humidity, & Pressure Sensor
-float Pressure;
-float GasResistance;
-float Temperature;
-float Humidity;
+float pressBme680;
+float gasResBme680;
+float tempBme680;
+float humiBme680;
 
 bsec_virtual_sensor_t sensorList[13] = {
     BSEC_OUTPUT_IAQ,
@@ -268,9 +273,18 @@ Adafruit_AHTX0 aht21;
 // ENS160
 uint8_t  aqiEns160;
 uint8_t  tvocEns160;
-uint16_t eco2Ena160;
+uint16_t eco2Ens160;
 
 ScioSense_ENS160 ens160(ENS160_I2CADDR_1);  // 0x53
+
+// DHT22
+#define DHTPIN  32
+#define DHTTYPE DHT22
+
+float tempDht22;
+float humiDht22;
+
+DHT dht(DHTPIN, DHTTYPE);
 
 //******************************** Tasks ************************************//
 void    Sgp41HeatingOn();
@@ -761,15 +775,15 @@ void ReadEns160Aht21() {
 
     aqiEns160  = ens160.getAQI();
     tvocEns160 = ens160.getTVOC();
-    eco2Ena160 = ens160.geteCO2();
+    eco2Ens160 = ens160.geteCO2();
 }
 
 void ReadData() {
     if (iaqSensor.run()) {
-        Temperature   = iaqSensor.temperature;
-        Humidity      = iaqSensor.humidity;
-        Pressure      = iaqSensor.pressure / 100.f;
-        GasResistance = iaqSensor.gasResistance;
+        tempBme680   = iaqSensor.temperature;
+        humiBme680   = iaqSensor.humidity;
+        pressBme680  = iaqSensor.pressure / 100.f;
+        gasResBme680 = iaqSensor.gasResistance;
     }
 
     // VEML7700-------------/
@@ -778,6 +792,7 @@ void ReadData() {
     // MH-Z19B-------------/
     co2 = myMHZ19.getCO2();  // Request CO2 (as ppm)
 
+    // PMSA003A-------------/
     pms.read();
     if (pms) {  // successfull read
         pm_01 = pms.pm01;
@@ -788,23 +803,28 @@ void ReadData() {
     ReadSht40Sgp41();
     ReadEns160Aht21();
 
+    // DHT22
+    tempDht22 = dht.readTemperature();
+    humiDht22 = dht.readHumidity();
+
 #ifdef _DEBUG_
-    Serial.print("Temp: " + String(Temperature) + ", Humi: " + String(Humidity) + ", press: " + String(Pressure));
-    Serial.print(", GasResistance: " + String(GasResistance));
-    Serial.print(", Illu: " + String(lux) + ", CO2: " + String(co2));
-    Serial.println(", pm1.0: " + String(pm_01) + ", pm2.5: " + String(pm_25) + ", pm10: " + String(pm_10));
-    Serial.printf("Temp-SHT40: %.2f C | Humi-SHT40: %.2f %%", tempSht40, humiSht40);
-    Serial.printf(" | VOC Idx-SGP41: %d, NOx Idx-SGP41: %d\n", vocIdxSgp41, noxIdxSgp41);
-    Serial.printf("Temp-AHT21: %.2f C | Humi-AHT21: %.2f %%", tempAht21, humiAht21);
-    Serial.printf(" | AQI-ENS160: %u | TVOC-ENS160: %u ppb | eCO2-ENS160: %u ppm\n", aqiEns160, tvocEns160, eco2Ena160);
+    Serial.printf("AHT21: Temp: %.2f C | Humi: %.2f %%\n", tempAht21, humiAht21);
+    Serial.printf("BME680: Temp: %.2f C | Humi: %.2f %% | Gas Resist: %.2f kohm\n", tempBme680, humiBme680, gasResBme680);
+    Serial.printf("DHT22: Temp: %.2f C | Humi: %.2f %%\n", tempDht22, humiDht22);
+    Serial.printf("ENS160: AQI: %u | TVOC: %u ppb | eCO2: %u ppm\n", aqiEns160, tvocEns160, eco2Ens160);
+    Serial.printf("MHZ19B: CO2: %d ppm\n", co2);
+    Serial.printf("PMSA003A: PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3\n", pm_01, pm_25, pm_10);
+    Serial.printf("SGP41: VOC Idx: %d | NOx Idx: %d\n", vocIdxSgp41, noxIdxSgp41);
+    Serial.printf("SHT40: Temp: %.2f C | Humi: %.2f %%\n", tempSht40, humiSht40);
+    Serial.printf("VEML7700: Lux: %.2f\n", lux);
 #endif
 }
 
 void SendData() {
-    mqtt.publish(MQTT_PUB_PRESSURE, String(Pressure).c_str());
-    mqtt.publish(MQTT_PUB_GAS_RESISTANCE, String(GasResistance).c_str());
-    mqtt.publish(MQTT_PUB_TEMPERATURE, String(Temperature).c_str());
-    mqtt.publish(MQTT_PUB_HUMIDITY, String(Humidity).c_str());
+    mqtt.publish(MQTT_PUB_PRESSURE, String(pressBme680).c_str());
+    mqtt.publish(MQTT_PUB_GAS_RESISTANCE, String(gasResBme680).c_str());
+    mqtt.publish(MQTT_PUB_TEMPERATURE, String(tempBme680).c_str());
+    mqtt.publish(MQTT_PUB_HUMIDITY, String(humiBme680).c_str());
     mqtt.publish(MQTT_PUB_LUX, String(lux).c_str());
     mqtt.publish(MQTT_PUB_CO2, String(co2).c_str());
     mqtt.publish(MQTT_PUB_PM01, String(pm_01).c_str());
@@ -818,10 +838,149 @@ void SendData() {
     mqtt.publish(MQTT_PUB_huimAht21, String(humiAht21).c_str());
     mqtt.publish(MQTT_PUB_aqiEns160, String(aqiEns160).c_str());
     mqtt.publish(MQTT_PUB_tvocEns160, String(tvocEns160).c_str());
-    mqtt.publish(MQTT_PUB_eco2Ens160, String(eco2Ena160).c_str());
+    mqtt.publish(MQTT_PUB_eco2Ens160, String(eco2Ens160).c_str());
+    mqtt.publish(MQTT_PUB_tempDht22, String(tempDht22).c_str());
+    mqtt.publish(MQTT_PUB_humiDht22, String(humiDht22).c_str());
+
+    // ArduinoJson Assistant: https://arduinojson.org/v7/assistant/#/step1
+
+    // [
+    //     {
+    //        "measurement":"aht21",
+    //        "fields":{
+    //           "temp":5.5,
+    //           "humi":678
+    //        }
+    //     },
+    //     {
+    //        "measurement":"bme680",
+    //        "fields":{
+    //           "temp":5.5,
+    //           "humi":678,
+    //           "press":51,
+    //           "gasRes":51
+    //        }
+    //     },
+    //     {
+    //        "measurement":"dht22",
+    //        "fields":{
+    //           "temp":999,
+    //           "humi":19.5
+    //        }
+    //     },
+    //     {
+    //        "measurement":"ens160",
+    //        "fields":{
+    //           "aqi":999,
+    //           "tVoc":19.5,
+    //           "eCo2":1235
+    //        }
+    //     },
+    //     {
+    //        "measurement":"mhz19b",
+    //        "fields":{
+    //           "co2":999
+    //        }
+    //     },
+    //     {
+    //        "measurement":"pmsa003a",
+    //        "fields":{
+    //           "pm010":999,
+    //           "pm025":999,
+    //           "pm100":999
+    //        }
+    //     },
+    //     {
+    //        "measurement":"sgp41",
+    //        "fields":{
+    //           "vocIdx":100,
+    //           "noxIdx":1
+    //        }
+    //     },
+    //     {
+    //        "measurement":"sht40",
+    //        "fields":{
+    //           "temp":25.3,
+    //           "humi":30.2
+    //        }
+    //     },
+    //     {
+    //        "measurement":"veml7700",
+    //        "fields":{
+    //           "lux":999
+    //        }
+    //     }
+    //  ]
+
+    JsonDocument doc;
+
+    doc.clear();
+
+    JsonObject doc_0         = doc.add<JsonObject>();
+    doc_0["measurement"]     = "aht21";
+    JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
+    root_0_fields["temp"]    = tempDht22;
+    root_0_fields["humi"]    = humiDht22;
+
+    JsonObject doc_1         = doc.add<JsonObject>();
+    doc_1["measurement"]     = "bme680";
+    JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
+    root_1_fields["temp"]    = tempBme680;
+    root_1_fields["humi"]    = humiBme680;
+    root_1_fields["press"]   = pressBme680;
+    root_1_fields["gasRes"]  = gasResBme680;
+
+    JsonObject doc_2         = doc.add<JsonObject>();
+    doc_2["measurement"]     = "dht22";
+    JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
+    root_2_fields["temp"]    = tempDht22;
+    root_2_fields["humi"]    = humiDht22;
+
+    JsonObject doc_3         = doc.add<JsonObject>();
+    doc_3["measurement"]     = "ens160";
+    JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
+    root_3_fields["aqi"]     = aqiEns160;
+    root_3_fields["tVoc"]    = tvocEns160;
+    root_3_fields["eCo2"]    = eco2Ens160;
+
+    JsonObject doc_4       = doc.add<JsonObject>();
+    doc_4["measurement"]   = "mhz19b";
+    doc_4["fields"]["co2"] = co2;
+
+    JsonObject doc_5         = doc.add<JsonObject>();
+    doc_5["measurement"]     = "pmsa003a";
+    JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
+    root_5_fields["pm010"]   = pm_01;
+    root_5_fields["pm025"]   = pm_25;
+    root_5_fields["pm100"]   = pm_10;
+
+    JsonObject doc_6         = doc.add<JsonObject>();
+    doc_6["measurement"]     = "sgp41";
+    JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
+    root_6_fields["vocIdx"]  = vocIdxSgp41;
+    root_6_fields["noxIdx"]  = noxIdxSgp41;
+
+    JsonObject doc_7         = doc.add<JsonObject>();
+    doc_7["measurement"]     = "sht40";
+    JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
+    root_7_fields["temp"]    = tempSht40;
+    root_7_fields["humi"]    = humiSht40;
+
+    JsonObject doc_8       = doc.add<JsonObject>();
+    doc_8["measurement"]   = "veml7700";
+    doc_8["fields"]["lux"] = lux;
+
+    doc.shrinkToFit();  // optional
+
+    char jsonBuffer[1024];
+
+    serializeJson(doc, jsonBuffer);
+
+    mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
 
 #ifdef _DEBUG_
-    Serial.println("Data sending is done.");
+    Serial.println("JSON: " + String(jsonBuffer));
+    Serial.println("\nData sending is done.");
 #endif
 }
 
@@ -923,18 +1082,15 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(SQW_PIN), onRtcTrigger, FALLING);
     resetWifiBt.begin();
     resetWifiBt.onPressedFor(5000, resetWifiBtPressed);
-
     // BME680
     iaqSensor.begin(BME68X_I2C_ADDR_LOW, Wire);
     iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
-
     // VEML7700
     CheckSensor(veml.begin(), "VEML7700");
-    // MH-Z19B Init
-    // mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);       // (Uno example) device to MH-Z19 serial start
-    mySerial.begin(9600);       // (Uno example) device to MH-Z19 serial start
-    myMHZ19.begin(mySerial);    // *Serial(Stream) reference must be passed to library begin().
-    myMHZ19.autoCalibration();  // Turn auto calibration ON (OFF autoCalibration(false))
+    // MH-Z19B
+    mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
+    myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
+    myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
     // PMSA003
     pms.init();
     // SHT40
@@ -947,16 +1103,21 @@ void setup() {
     ens160.begin();
     CheckSensor(ens160.available(), "ENS160");
     ens160.setMode(ENS160_OPMODE_STD);
+    // DHT22
+    dht.begin();
 
     wifiManagerSetup();
     OtaWebUpdateSetup();
 
     SetupAlarm();
 
+    // mqtt.setBufferSize(1024); // Max buffer size = 1024 bytes
     mqtt.setServer(mqtt_server, atoi(mqtt_port));
+
     tWifiDisconnectedDetect.start();
     tConnectMqtt.start();
-#ifndef _20secTest
+
+#ifndef _20SecTest
     tSgp41HeatingOff.start();
 #endif
 }
@@ -968,7 +1129,8 @@ void loop() {
     server.handleClient();  // OTA Web Update
     tConnectMqtt.update();
     tReconnectMqtt.update();
-#ifndef _20secTest
+
+#ifndef _20SecTest
     tSgp41HeatingOn.update();
     tSgp41HeatingOff.update();
 #endif
