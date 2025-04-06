@@ -912,74 +912,74 @@ void SendData() {
     //     }
     //  ]
 
-    JsonDocument doc;
+    // JsonDocument doc;
 
-    doc.clear();
+    // doc.clear();
 
-    JsonObject doc_0         = doc.add<JsonObject>();
-    doc_0["measurement"]     = "aht21";
-    JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
-    root_0_fields["temp"]    = tempDht22;
-    root_0_fields["humi"]    = humiDht22;
+    // JsonObject doc_0         = doc.add<JsonObject>();
+    // doc_0["measurement"]     = "aht21";
+    // JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
+    // root_0_fields["temp"]    = tempDht22;
+    // root_0_fields["humi"]    = humiDht22;
 
-    JsonObject doc_1         = doc.add<JsonObject>();
-    doc_1["measurement"]     = "bme680";
-    JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
-    root_1_fields["temp"]    = tempBme680;
-    root_1_fields["humi"]    = humiBme680;
-    root_1_fields["press"]   = pressBme680;
-    root_1_fields["gasRes"]  = gasResBme680;
+    // JsonObject doc_1         = doc.add<JsonObject>();
+    // doc_1["measurement"]     = "bme680";
+    // JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
+    // root_1_fields["temp"]    = tempBme680;
+    // root_1_fields["humi"]    = humiBme680;
+    // root_1_fields["press"]   = pressBme680;
+    // root_1_fields["gasRes"]  = gasResBme680;
 
-    JsonObject doc_2         = doc.add<JsonObject>();
-    doc_2["measurement"]     = "dht22";
-    JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
-    root_2_fields["temp"]    = tempDht22;
-    root_2_fields["humi"]    = humiDht22;
+    // JsonObject doc_2         = doc.add<JsonObject>();
+    // doc_2["measurement"]     = "dht22";
+    // JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
+    // root_2_fields["temp"]    = tempDht22;
+    // root_2_fields["humi"]    = humiDht22;
 
-    JsonObject doc_3         = doc.add<JsonObject>();
-    doc_3["measurement"]     = "ens160";
-    JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
-    root_3_fields["aqi"]     = aqiEns160;
-    root_3_fields["tVoc"]    = tvocEns160;
-    root_3_fields["eCo2"]    = eco2Ens160;
+    // JsonObject doc_3         = doc.add<JsonObject>();
+    // doc_3["measurement"]     = "ens160";
+    // JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
+    // root_3_fields["aqi"]     = aqiEns160;
+    // root_3_fields["tVoc"]    = tvocEns160;
+    // root_3_fields["eCo2"]    = eco2Ens160;
 
-    JsonObject doc_4       = doc.add<JsonObject>();
-    doc_4["measurement"]   = "mhz19b";
-    doc_4["fields"]["co2"] = co2;
+    // JsonObject doc_4       = doc.add<JsonObject>();
+    // doc_4["measurement"]   = "mhz19b";
+    // doc_4["fields"]["co2"] = co2;
 
-    JsonObject doc_5         = doc.add<JsonObject>();
-    doc_5["measurement"]     = "pmsa003a";
-    JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
-    root_5_fields["pm010"]   = pm_01;
-    root_5_fields["pm025"]   = pm_25;
-    root_5_fields["pm100"]   = pm_10;
+    // JsonObject doc_5         = doc.add<JsonObject>();
+    // doc_5["measurement"]     = "pmsa003a";
+    // JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
+    // root_5_fields["pm010"]   = pm_01;
+    // root_5_fields["pm025"]   = pm_25;
+    // root_5_fields["pm100"]   = pm_10;
 
-    JsonObject doc_6         = doc.add<JsonObject>();
-    doc_6["measurement"]     = "sgp41";
-    JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
-    root_6_fields["vocIdx"]  = vocIdxSgp41;
-    root_6_fields["noxIdx"]  = noxIdxSgp41;
+    // JsonObject doc_6         = doc.add<JsonObject>();
+    // doc_6["measurement"]     = "sgp41";
+    // JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
+    // root_6_fields["vocIdx"]  = vocIdxSgp41;
+    // root_6_fields["noxIdx"]  = noxIdxSgp41;
 
-    JsonObject doc_7         = doc.add<JsonObject>();
-    doc_7["measurement"]     = "sht40";
-    JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
-    root_7_fields["temp"]    = tempSht40;
-    root_7_fields["humi"]    = humiSht40;
+    // JsonObject doc_7         = doc.add<JsonObject>();
+    // doc_7["measurement"]     = "sht40";
+    // JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
+    // root_7_fields["temp"]    = tempSht40;
+    // root_7_fields["humi"]    = humiSht40;
 
-    JsonObject doc_8       = doc.add<JsonObject>();
-    doc_8["measurement"]   = "veml7700";
-    doc_8["fields"]["lux"] = lux;
+    // JsonObject doc_8       = doc.add<JsonObject>();
+    // doc_8["measurement"]   = "veml7700";
+    // doc_8["fields"]["lux"] = lux;
 
-    doc.shrinkToFit();  // optional
+    // doc.shrinkToFit();  // optional
 
-    char jsonBuffer[1024];
+    // char jsonBuffer[1024];
 
-    serializeJson(doc, jsonBuffer);
+    // serializeJson(doc, jsonBuffer);
 
-    mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
+    // mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
 
 #ifdef _DEBUG_
-    Serial.println("JSON: " + String(jsonBuffer));
+    // Serial.println("JSON: " + String(jsonBuffer));
     Serial.println("\nData sending is done.");
 #endif
 }
