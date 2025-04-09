@@ -30,6 +30,7 @@ Log:
 #include <PMserial.h>              // PMSA003 - PMSerial - https://github.com/avaldebe/PMserial
 #include "Adafruit_VEML7700.h"     // VEML7700 - Adafruit VEML7700
 #include "MHZ19.h"                 // MH-Z19B - MH-Z19 - https://github.com/WifWaf/MH-Z19
+#include <SensirionI2cScd4x.h>     // SCD4x - Sensirion I2C SCD4x
 #include <SensirionI2CSgp41.h>     // SGP41 - Sensirion I2C SGP41
 #include <SensirionI2cSht4x.h>     // SHT40 - Sensirion I2C SHT4x
 #include <VOCGasIndexAlgorithm.h>  // SGP41 - Sensirian Gas Index Algorithm
@@ -165,6 +166,9 @@ WebServer server(80);
 #define MQTT_PUB_PM01           "esp32/pmsa003/pm_01"
 #define MQTT_PUB_PM25           "esp32/pmsa003/pm_25"
 #define MQTT_PUB_PM10           "esp32/pmsa003/pm_10"
+#define MQTT_PUB_tempScd41      "esp32/scd41/temp"
+#define MQTT_PUB_humiScd41      "esp32/scd41/humi"
+#define MQTT_PUB_co2Scd41       "esp32/scd41/co2"
 #define MQTT_PUB_tempSht40      "esp32/sht40/temp"
 #define MQTT_PUB_humiSht40      "esp32/sht40/humi"
 #define MQTT_PUB_vocIdxSgp41    "esp32/sgp41/vocIdx"
@@ -246,15 +250,31 @@ HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial li
 uint16_t pm_01, pm_25, pm_10;
 SerialPM pms(PMSx003, pmsRX, pmsTX);
 
+// SCD41 CO2 Sensor
+#ifdef NO_ERROR
+#undef NO_ERROR
+#endif
+#define NO_ERROR 0
+
+static int16_t scd41Error;
+static char    scd41ErrorMessage[64];
+
+float    tempScd41;
+float    humiScd41;
+uint16_t co2Scd41;
+
+SensirionI2cScd4x scd41;
+
 // SHT40 Temperature & Humidity Sensor
-float humiSht40;  // %RH
 float tempSht40;  // degreeC
+float humiSht40;  // %RH
 
 SensirionI2cSht4x sht40;
 
 // SGP41 Air Quality Sensor, VOC & NOx Index
 uint16_t conditioning_s = 10;
-char     errorMessage[256];
+uint16_t sgp41Error;
+char     sgp41ErrorMessage[256];
 
 int32_t vocIdxSgp41;
 int32_t noxIdxSgp41;
@@ -641,7 +661,9 @@ void SetupAlarm() {
     rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 20), DS3231_A1_Second);  // Test
     Serial.print("Trigger next time: ");
     Serial.println(String(roundSec(rtc.now().second() + 20)) + "th sec.");
+
 #else
+
     tMin = rtc.now().minute();
 #ifdef _DEBUG_
     Serial.println("tMin: " + String(tMin));
@@ -658,6 +680,7 @@ void SetupAlarm() {
     Serial.print("Preheat Time: " + String(preheatTime) + "th min.");
     Serial.println(" | Tringger next time: " + String(setMin) + "th min.");
 #endif
+
 #endif
 
 #ifdef _DEBUG_
@@ -671,10 +694,93 @@ void IRAM_ATTR onRtcTrigger() { rtcTrigger = true; }
 bool t15MinMatch(int tMin) { return tMin >= 0 && tMin % 15 == 0 && tMin < 60; }
 
 //----------------- Collect Data --------------//
+
+void ReadScd41() {
+#ifdef _20SecTest
+
+#ifdef _DEBUG_
+    bool dataReady = false;
+    scd41Error     = scd41.getDataReadyStatus(dataReady);
+    if (scd41Error != NO_ERROR) {
+        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+        // #ifdef _DEBUG_
+        Serial.print("Error trying to execute getDataReadyStatus(): ");
+        Serial.println(scd41ErrorMessage);
+        // #endif
+        return;
+    }
+
+    while (!dataReady) {
+        delay(100);
+        scd41Error = scd41.getDataReadyStatus(dataReady);
+        if (scd41Error != NO_ERROR) {
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+            // #ifdef _DEBUG_
+            Serial.print("Error trying to execute getDataReadyStatus(): ");
+            Serial.println(scd41ErrorMessage);
+            // #endif
+            return;
+        }
+    }
+#endif
+
+    // If ambient pressure compenstation during measurement
+    // is required, you should call the respective functions here.
+    // Check out the header file for the function definition.
+    scd41Error = scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
+
+#ifdef _DEBUG_
+    if (scd41Error != NO_ERROR) {
+        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+        // #ifdef _DEBUG_
+        Serial.print("Error trying to execute readMeasurement(): ");
+        Serial.println(scd41ErrorMessage);
+        // #endif
+        return;
+    }
+#endif
+
+#else
+
+#ifdef _DEBUG_
+    // Wake the sensor up from sleep mode.
+    scd41Error = scd41.wakeUp();
+    if (scd41Error != NO_ERROR) {
+        Serial.print("Error trying to execute wakeUp(): ");
+        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+        Serial.println(scd41ErrorMessage);
+        return;
+    }
+    //
+    // Ignore first measurement after wake up.
+    //
+    scd41Error = scd41.measureSingleShot();
+    if (scd41Error != NO_ERROR) {
+        Serial.print("Error trying to execute measureSingleShot(): ");
+        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+        Serial.println(scd41ErrorMessage);
+        return;
+    }
+
+#endif
+    //
+    // Perform single shot measurement and read data.
+    //
+    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
+
+#ifdef _DEBUG_
+    if (scd41Error != NO_ERROR) {
+        Serial.print("Error trying to execute measureAndReadSingleShot(): ");
+        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+        Serial.println(scd41ErrorMessage);
+        return;
+    }
+#endif
+
+#endif
+}
+
 void ReadSht40Sgp41() {
-    uint16_t error;
-    //  float humidity = 0;     // %RH
-    //  float temperature = 0;  // degreeC
     humiSht40                      = 0;  // %RH
     tempSht40                      = 0;  // degreeC
     uint16_t srawVoc               = 0;
@@ -690,12 +796,12 @@ void ReadSht40Sgp41() {
     // delay(1000);
 
     // 2. Measure temperature and humidity for SGP internal compensation
-    error = sht40.measureHighPrecision(tempSht40, humiSht40);
-    if (error) {
-        errorToString(error, errorMessage, 256);
+    sgp41Error = sht40.measureHighPrecision(tempSht40, humiSht40);
+    if (sgp41Error) {
+        errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
         Serial.print("SHT4x - Error trying to execute measureHighPrecision(): ");
-        Serial.println(errorMessage);
+        Serial.println(sgp41ErrorMessage);
         Serial.println("Fallback to use default values for humidity and temperature compensation for SGP41");
 #endif
         compensationRh = defaultCompenstaionRh;
@@ -713,20 +819,20 @@ void ReadSht40Sgp41() {
     // 3. Measure SGP4x signals
     if (conditioning_s > 0) {
         // During NOx conditioning (10s) SRAW NOx will remain 0
-        error = sgp41.executeConditioning(compensationRh, compensationT, srawVoc);
+        sgp41Error = sgp41.executeConditioning(compensationRh, compensationT, srawVoc);
         conditioning_s--;
     } else {
-        error = sgp41.measureRawSignals(compensationRh, compensationT, srawVoc, srawNox);
+        sgp41Error = sgp41.measureRawSignals(compensationRh, compensationT, srawVoc, srawNox);
     }
 
     // 4. Process raw signals by Gas Index Algorithm to get the VOC and NOx
     // index
     //    values
-    if (error) {
-        errorToString(error, errorMessage, 256);
+    if (sgp41Error) {
+        errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
         Serial.print("SGP41 - Error trying to execute measureRawSignals(): ");
-        Serial.println(errorMessage);
+        Serial.println(sgp41ErrorMessage);
 #endif
     } else {
         vocIdxSgp41 = voc_algorithm.process(srawVoc);
@@ -740,6 +846,7 @@ void Sgp41HeatingOn() {
         Serial.println("Sgp41HeatingOn: First Time");
     }
 #endif
+
     ReadSht40Sgp41();
     uint8_t now = rtc.now().minute();
     if (now == setMin) {
@@ -754,6 +861,7 @@ void Sgp41HeatingOff() {
         Serial.println("Sgp41HeatingOff: First Time");
     }
 #endif
+
     uint8_t now = rtc.now().minute();
     if (now == preheatTime) {
         tSgp41HeatingOff.stop();
@@ -800,6 +908,7 @@ void ReadData() {
         pm_10 = pms.pm10;
     }
 
+    ReadScd41();
     ReadSht40Sgp41();
     ReadEns160Aht21();
 
@@ -814,6 +923,7 @@ void ReadData() {
     Serial.printf("ENS160: AQI: %u | TVOC: %u ppb | eCO2: %u ppm\n", aqiEns160, tvocEns160, eco2Ens160);
     Serial.printf("MHZ19B: CO2: %d ppm\n", co2);
     Serial.printf("PMSA003A: PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3\n", pm_01, pm_25, pm_10);
+    Serial.printf("SDC41: Temp: %.2f C | Humi: %.2f %% | CO2: %u ppm\n", tempScd41, humiScd41, co2Scd41);
     Serial.printf("SGP41: VOC Idx: %d | NOx Idx: %d\n", vocIdxSgp41, noxIdxSgp41);
     Serial.printf("SHT40: Temp: %.2f C | Humi: %.2f %%\n", tempSht40, humiSht40);
     Serial.printf("VEML7700: Lux: %.2f\n", lux);
@@ -830,6 +940,9 @@ void SendData() {
     mqtt.publish(MQTT_PUB_PM01, String(pm_01).c_str());
     mqtt.publish(MQTT_PUB_PM25, String(pm_25).c_str());
     mqtt.publish(MQTT_PUB_PM10, String(pm_10).c_str());
+    mqtt.publish(MQTT_PUB_tempScd41, String(tempScd41).c_str());
+    mqtt.publish(MQTT_PUB_humiScd41, String(humiScd41).c_str());
+    mqtt.publish(MQTT_PUB_co2Scd41, String(co2Scd41).c_str());
     mqtt.publish(MQTT_PUB_tempSht40, String(tempSht40).c_str());
     mqtt.publish(MQTT_PUB_humiSht40, String(humiSht40).c_str());
     mqtt.publish(MQTT_PUB_vocIdxSgp41, String(vocIdxSgp41).c_str());
@@ -990,7 +1103,9 @@ void IRAM_ATTR fetchData() {
 #ifdef _20SecTest
     ReadData();
     SendData();
+
 #else
+
 #ifdef _DEBUG_
     Serial.print("15min Match: ");
     Serial.println(t15MinMatch(tMin) ? "true" : "false");
@@ -1006,6 +1121,7 @@ void IRAM_ATTR fetchData() {
         Serial.println("\tread data next time.");
 #endif
     }
+
 #endif
 }
 
@@ -1091,8 +1207,13 @@ void setup() {
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
-    // PMSA003
+                                                       // PMSA003
     pms.init();
+    // SCD41
+    scd41.begin(Wire, SCD41_I2C_ADDR_62);
+#ifdef _20SecTest
+    scd41.startPeriodicMeasurement();
+#endif
     // SHT40
     sht40.begin(Wire, SHT40_I2C_ADDR_44);
     // SGP41
