@@ -1211,6 +1211,8 @@ void setup() {
     pms.init();
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
+    float temperatureOffset = 0.0;
+    scd41.getTemperatureOffset(temperatureOffset);
 #ifdef _20SecTest
     scd41.startPeriodicMeasurement();
 #endif
