@@ -157,30 +157,6 @@ String ud =
 WebServer server(80);
 
 //*---------------- PubSubClient -------------//
-#define MQTT_PUB_PRESSURE       "esp32/bme680/pressure"
-#define MQTT_PUB_GAS_RESISTANCE "esp32/bme680/gasResistance"
-#define MQTT_PUB_TEMPERATURE    "esp32/bme680/temperature"
-#define MQTT_PUB_HUMIDITY       "esp32/bme680/humidity"
-#define MQTT_PUB_LUX            "esp32/veml7700/illumination"
-#define MQTT_PUB_CO2            "esp32/mhz19b/co2"
-#define MQTT_PUB_PM01           "esp32/pmsa003/pm_01"
-#define MQTT_PUB_PM25           "esp32/pmsa003/pm_25"
-#define MQTT_PUB_PM10           "esp32/pmsa003/pm_10"
-#define MQTT_PUB_tempScd41      "esp32/scd41/temp"
-#define MQTT_PUB_humiScd41      "esp32/scd41/humi"
-#define MQTT_PUB_co2Scd41       "esp32/scd41/co2"
-#define MQTT_PUB_tempSht40      "esp32/sht40/temp"
-#define MQTT_PUB_humiSht40      "esp32/sht40/humi"
-#define MQTT_PUB_vocIdxSgp41    "esp32/sgp41/vocIdx"
-#define MQTT_PUB_noxIdxSgp41    "esp32/sgp41/noxIdx"
-#define MQTT_PUB_tempAht21      "esp32/aht21/temp"
-#define MQTT_PUB_huimAht21      "esp32/aht21/humi"
-#define MQTT_PUB_aqiEns160      "esp32/ens160/aqi"
-#define MQTT_PUB_tvocEns160     "esp32/ens160/tvoc"
-#define MQTT_PUB_eco2Ens160     "esp32/ens160/eco2"
-#define MQTT_PUB_tempDht22      "esp32/dht22/temp"
-#define MQTT_PUB_humiDht22      "esp32/dht22/humi"
-
 #define MQTT_PUB_JSON "esp32/sensors/json"
 
 WiFiClient   mqttClient;
@@ -742,6 +718,7 @@ void ReadScd41() {
 
 #else
 
+// Single Shot Mode
 #ifdef _DEBUG_
     // Wake the sensor up from sleep mode.
     scd41Error = scd41.wakeUp();
@@ -931,30 +908,6 @@ void ReadData() {
 }
 
 void SendData() {
-    mqtt.publish(MQTT_PUB_PRESSURE, String(pressBme680).c_str());
-    mqtt.publish(MQTT_PUB_GAS_RESISTANCE, String(gasResBme680).c_str());
-    mqtt.publish(MQTT_PUB_TEMPERATURE, String(tempBme680).c_str());
-    mqtt.publish(MQTT_PUB_HUMIDITY, String(humiBme680).c_str());
-    mqtt.publish(MQTT_PUB_LUX, String(lux).c_str());
-    mqtt.publish(MQTT_PUB_CO2, String(co2).c_str());
-    mqtt.publish(MQTT_PUB_PM01, String(pm_01).c_str());
-    mqtt.publish(MQTT_PUB_PM25, String(pm_25).c_str());
-    mqtt.publish(MQTT_PUB_PM10, String(pm_10).c_str());
-    mqtt.publish(MQTT_PUB_tempScd41, String(tempScd41).c_str());
-    mqtt.publish(MQTT_PUB_humiScd41, String(humiScd41).c_str());
-    mqtt.publish(MQTT_PUB_co2Scd41, String(co2Scd41).c_str());
-    mqtt.publish(MQTT_PUB_tempSht40, String(tempSht40).c_str());
-    mqtt.publish(MQTT_PUB_humiSht40, String(humiSht40).c_str());
-    mqtt.publish(MQTT_PUB_vocIdxSgp41, String(vocIdxSgp41).c_str());
-    mqtt.publish(MQTT_PUB_noxIdxSgp41, String(noxIdxSgp41).c_str());
-    mqtt.publish(MQTT_PUB_tempAht21, String(tempAht21).c_str());
-    mqtt.publish(MQTT_PUB_huimAht21, String(humiAht21).c_str());
-    mqtt.publish(MQTT_PUB_aqiEns160, String(aqiEns160).c_str());
-    mqtt.publish(MQTT_PUB_tvocEns160, String(tvocEns160).c_str());
-    mqtt.publish(MQTT_PUB_eco2Ens160, String(eco2Ens160).c_str());
-    mqtt.publish(MQTT_PUB_tempDht22, String(tempDht22).c_str());
-    mqtt.publish(MQTT_PUB_humiDht22, String(humiDht22).c_str());
-
     // ArduinoJson Assistant: https://arduinojson.org/v7/assistant/#/step1
 
     // [
@@ -1004,6 +957,14 @@ void SendData() {
     //        }
     //     },
     //     {
+    //        "measurement":"scd41",
+    //        "fields":{
+    //           "temp":100,
+    //           "humi":1,
+    //           "co2":1,
+    //        }
+    //     },
+    //     {
     //        "measurement":"sgp41",
     //        "fields":{
     //           "vocIdx":100,
@@ -1025,71 +986,78 @@ void SendData() {
     //     }
     //  ]
 
-    // JsonDocument doc;
+    JsonDocument doc;
 
-    // doc.clear();
+    doc.clear();
 
-    // JsonObject doc_0         = doc.add<JsonObject>();
-    // doc_0["measurement"]     = "aht21";
-    // JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
-    // root_0_fields["temp"]    = tempDht22;
-    // root_0_fields["humi"]    = humiDht22;
+    JsonObject doc_0         = doc.add<JsonObject>();
+    doc_0["measurement"]     = "aht21";
+    JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
+    root_0_fields["temp"]    = tempDht22;
+    root_0_fields["humi"]    = humiDht22;
 
-    // JsonObject doc_1         = doc.add<JsonObject>();
-    // doc_1["measurement"]     = "bme680";
-    // JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
-    // root_1_fields["temp"]    = tempBme680;
-    // root_1_fields["humi"]    = humiBme680;
-    // root_1_fields["press"]   = pressBme680;
-    // root_1_fields["gasRes"]  = gasResBme680;
+    JsonObject doc_1         = doc.add<JsonObject>();
+    doc_1["measurement"]     = "bme680";
+    JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
+    root_1_fields["temp"]    = tempBme680;
+    root_1_fields["humi"]    = humiBme680;
+    root_1_fields["press"]   = pressBme680;
+    root_1_fields["gasRes"]  = gasResBme680;
 
-    // JsonObject doc_2         = doc.add<JsonObject>();
-    // doc_2["measurement"]     = "dht22";
-    // JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
-    // root_2_fields["temp"]    = tempDht22;
-    // root_2_fields["humi"]    = humiDht22;
+    JsonObject doc_2         = doc.add<JsonObject>();
+    doc_2["measurement"]     = "dht22";
+    JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
+    root_2_fields["temp"]    = tempDht22;
+    root_2_fields["humi"]    = humiDht22;
 
-    // JsonObject doc_3         = doc.add<JsonObject>();
-    // doc_3["measurement"]     = "ens160";
-    // JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
-    // root_3_fields["aqi"]     = aqiEns160;
-    // root_3_fields["tVoc"]    = tvocEns160;
-    // root_3_fields["eCo2"]    = eco2Ens160;
+    JsonObject doc_3         = doc.add<JsonObject>();
+    doc_3["measurement"]     = "ens160";
+    JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
+    root_3_fields["aqi"]     = aqiEns160;
+    root_3_fields["tVoc"]    = tvocEns160;
+    root_3_fields["eCo2"]    = eco2Ens160;
 
-    // JsonObject doc_4       = doc.add<JsonObject>();
-    // doc_4["measurement"]   = "mhz19b";
-    // doc_4["fields"]["co2"] = co2;
+    JsonObject doc_4       = doc.add<JsonObject>();
+    doc_4["measurement"]   = "mhz19b";
+    doc_4["fields"]["co2"] = co2;
 
-    // JsonObject doc_5         = doc.add<JsonObject>();
-    // doc_5["measurement"]     = "pmsa003a";
-    // JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
-    // root_5_fields["pm010"]   = pm_01;
-    // root_5_fields["pm025"]   = pm_25;
-    // root_5_fields["pm100"]   = pm_10;
+    JsonObject doc_5         = doc.add<JsonObject>();
+    doc_5["measurement"]     = "pmsa003a";
+    JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
+    root_5_fields["pm010"]   = pm_01;
+    root_5_fields["pm025"]   = pm_25;
+    root_5_fields["pm100"]   = pm_10;
 
-    // JsonObject doc_6         = doc.add<JsonObject>();
-    // doc_6["measurement"]     = "sgp41";
-    // JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
-    // root_6_fields["vocIdx"]  = vocIdxSgp41;
-    // root_6_fields["noxIdx"]  = noxIdxSgp41;
+    JsonObject doc_6     = doc.add<JsonObject>();
+    doc_6["measurement"] = "scd41";
+    JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
+    root_6_fields["temp"]    = tempScd41;
+    root_6_fields["humi"]    = humiScd41;
+    root_6_fields["co2"]     = co2Scd41;
 
-    // JsonObject doc_7         = doc.add<JsonObject>();
-    // doc_7["measurement"]     = "sht40";
-    // JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
-    // root_7_fields["temp"]    = tempSht40;
-    // root_7_fields["humi"]    = humiSht40;
+    JsonObject doc_7         = doc.add<JsonObject>();
+    doc_7["measurement"]     = "sgp41";
+    JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
+    root_7_fields["vocIdx"]  = vocIdxSgp41;
+    root_7_fields["noxIdx"]  = noxIdxSgp41;
 
-    // JsonObject doc_8       = doc.add<JsonObject>();
-    // doc_8["measurement"]   = "veml7700";
-    // doc_8["fields"]["lux"] = lux;
+    JsonObject doc_8         = doc.add<JsonObject>();
+    doc_8["measurement"]     = "sht40";
+    JsonObject root_8_fields = doc_8["fields"].to<JsonObject>();
+    root_8_fields["temp"]    = tempSht40;
+    root_8_fields["humi"]    = humiSht40;
 
-    // doc.shrinkToFit();  // optional
+    JsonObject doc_9       = doc.add<JsonObject>();
+    doc_9["measurement"]   = "veml7700";
+    doc_9["fields"]["lux"] = lux;
 
-    // char jsonBuffer[1024];
+    doc.shrinkToFit();  // optional
 
-    // serializeJson(doc, jsonBuffer);
+    char jsonBuffer[1024];
 
-    // mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
+    serializeJson(doc, jsonBuffer);
+
+    mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
 
 #ifdef _DEBUG_
     // Serial.println("JSON: " + String(jsonBuffer));
@@ -1234,7 +1202,7 @@ void setup() {
 
     SetupAlarm();
 
-    // mqtt.setBufferSize(1024); // Max buffer size = 1024 bytes
+    mqtt.setBufferSize(1024); // Max buffer size = 1024 bytes (default: 256 bytes)
     mqtt.setServer(mqtt_server, atoi(mqtt_port));
 
     tWifiDisconnectedDetect.start();
