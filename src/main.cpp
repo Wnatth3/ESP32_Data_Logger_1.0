@@ -77,10 +77,12 @@ WiFiManager wifiManager;
 /* Style */
 String style =
     "<style>#file-input,input{width:100%;height:44px;border-radius:999px;margin:10px auto;font-size:15px}"
-    "input{background:#202020;border: 1px solid #777;padding:0 15px;text-align:center;color:white}body{background:#202020;font-family:sans-serif;font-size:14px;color:white}"
+    "input{background:#202020;border: 1px solid #777;padding:0 "
+    "15px;text-align:center;color:white}body{background:#202020;font-family:sans-serif;font-size:14px;color:white}"
     "#file-input{background:#202020;padding:0;border:1px solid #ddd;line-height:44px;text-align:center;display:block;cursor:pointer}"
     "#bar,#prgbar{background-color:#f1f1f1;border-radius:10px}#bar{background-color:#4C4CEA;width:0%;height:10px}"
-    "form{background:#181818;max-width:258px;margin:75px auto;padding:30px;border-radius:5px;box-shadow: 0px 0px 20px 5px #777;text-align:center}"
+    "form{background:#181818;max-width:258px;margin:75px auto;padding:30px;border-radius:5px;box-shadow: 0px 0px 20px 5px "
+    "#777;text-align:center}"
     ".btn{background:#4C4CEA;border-radius:999px;color:white;cursor:pointer}"
     ".btn-reset{background:#e74c3c;color:#fff;width:200px;height:30px;}"
     ".center-reset{display:flex;flex-direction:column;align-items:center;margin-top:20px;}</style>";
@@ -417,8 +419,8 @@ void wifiManagerSetup() {
     // wifiManager.resetSettings();  // reset settings - for testing
 
     wifiManager.setClass("invert");  // set dark theme
-    // wifiManager.setMinimumSignalQuality(30);  // defaults to 8% // set minimu quality of signal so it ignores AP's under that quality
-    // wifiManager.setTimeout(120);  // auto restart after the device can't connect to wifi within 120 seconds
+    // wifiManager.setMinimumSignalQuality(30);  // defaults to 8% // set minimu quality of signal so it ignores AP's under that
+    // quality wifiManager.setTimeout(120);  // auto restart after the device can't connect to wifi within 120 seconds
     wifiManager.setConfigPortalTimeout(60);  // auto close configportal after n seconds
 
     // fetches ssid and pass and tries to connect
@@ -529,32 +531,37 @@ void OtaWebUpdateSetup() {
         server.send(200, "text/html", ud);
     });
     /*handling uploading firmware file */
-    server.on("/update", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-    ESP.restart(); }, []() {
-    HTTPUpload& upload = server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
+    server.on(
+        "/update", HTTP_POST,
+        []() {
+            server.sendHeader("Connection", "close");
+            server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+            ESP.restart();
+        },
+        []() {
+            HTTPUpload& upload = server.upload();
+            if (upload.status == UPLOAD_FILE_START) {
 #ifdef _DEBUG_
-      Serial.printf("Update: %s\n", upload.filename.c_str());
+                Serial.printf("Update: %s\n", upload.filename.c_str());
 #endif
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      /* flashing firmware to ESP*/
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (Update.end(true)) { //true to set the size to the current progress
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {  // start with max available size
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_WRITE) {
+                /* flashing firmware to ESP*/
+                if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+                    Update.printError(Serial);
+                }
+            } else if (upload.status == UPLOAD_FILE_END) {
+                if (Update.end(true)) {  // true to set the size to the current progress
 #ifdef _DEBUG_
-        Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                    Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
 #endif
-      } else {
-        Update.printError(Serial);
-      }
-    } });
+                } else {
+                    Update.printError(Serial);
+                }
+            }
+        });
 
     // Reset route handler
     server.on("/reset", HTTP_POST, []() {
@@ -1028,8 +1035,8 @@ void SendData() {
     root_5_fields["pm025"]   = pm_25;
     root_5_fields["pm100"]   = pm_10;
 
-    JsonObject doc_6     = doc.add<JsonObject>();
-    doc_6["measurement"] = "scd41";
+    JsonObject doc_6         = doc.add<JsonObject>();
+    doc_6["measurement"]     = "scd41";
     JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
     root_6_fields["temp"]    = tempScd41;
     root_6_fields["humi"]    = humiScd41;
@@ -1202,7 +1209,7 @@ void setup() {
 
     SetupAlarm();
 
-    mqtt.setBufferSize(1024); // Max buffer size = 1024 bytes (default: 256 bytes)
+    mqtt.setBufferSize(1024);  // Max buffer size = 1024 bytes (default: 256 bytes)
     mqtt.setServer(mqtt_server, atoi(mqtt_port));
 
     tWifiDisconnectedDetect.start();
