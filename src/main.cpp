@@ -1,10 +1,6 @@
 /*
 Log:
-20.2.1  - Change tReconnectMqtt() logic
-20.2    - Add easyButton library
-        - Change update time to NTPClient Library
-20.0    - Base on 19.3
-        - Change Adafruit_BME680 to BSEC library
+
 */
 
 #include <Arduino.h>
@@ -42,9 +38,9 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-// #define _DEBUG_  // Uncomment this line if you want to debug
-// #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
-// #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
+#define _DEBUG_  // Uncomment this line if you want to debug
+#define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
+#define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
@@ -225,7 +221,7 @@ HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial li
 // PMSA003A
 #define pmsRX 18
 #define pmsTX 19
-uint16_t pm_01, pm_25, pm_10;
+uint16_t pm010, pm025, pm100;
 SerialPM pms(PMSx003, pmsRX, pmsTX);
 
 // SCD41 CO2 Sensor
@@ -291,7 +287,7 @@ TickTwo tSgp41HeatingOn(Sgp41HeatingOn, 500, 0, MILLIS);  // (function, interval
 TickTwo tSgp41HeatingOff(Sgp41HeatingOff, 0, 0, MILLIS);  // (function, interval, iteration, interval unit)
 
 void    wifiDisconnectedDetect();
-TickTwo tWifiDisconnectedDetect(wifiDisconnectedDetect, 300000, 0, MILLIS);
+TickTwo tWifiDisconnectedDetect(wifiDisconnectedDetect, 300000, 0, MILLIS);  // Every 5 minutes
 
 void    connectMqtt();
 void    reconnectMqtt();
@@ -593,6 +589,13 @@ uint8_t set15Min(uint8_t a) {
 uint8_t roundSec(uint8_t sec) { return sec > 60 ? sec - 60 : sec; }
 
 void SyncRtc() {
+    if (!rtc.begin()) {
+#ifdef _DEBUG_
+        Serial.println("Couldn't find RTC!");
+#endif
+        // Serial.flush();
+        // while (1) delay(10);
+    }
 #ifdef syncRtcWithNtp
     // Setup time with NTPClient library.
     timeClient.begin();
@@ -610,26 +613,22 @@ void SyncRtc() {
 #endif
 }
 
-// void SyncRtc2() {
-//     if (timeClient.getMinutes() != rtc.now().minute()) SyncRtc();
-// }
-
 void SetupAlarm() {
-    if (!rtc.begin()) {
-#ifdef _DEBUG_
-        Serial.println("Couldn't find RTC!");
-#endif
-        // Serial.flush();
-        // while (1) delay(10);
-    }
+    //     if (!rtc.begin()) {
+    // #ifdef _DEBUG_
+    //         Serial.println("Couldn't find RTC!");
+    // #endif
+    // Serial.flush();
+    // while (1) delay(10);
+    // }
 
     if (rtc.lostPower()) {
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));  // this will adjust to the date and time at compilation
     }
 
-    SyncRtc();  // To ync RTC with NTP server. The internet connection is required.
-    // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2023, 12, 9, 21, 59, 35));  // Manually set time
+// SyncRtc();  // Sync RTC with NTP server. The internet connection is required.
+// January 21, 2014 at 3am you would call:
+// rtc.adjust(DateTime(2023, 12, 9, 21, 59, 35));  // Manually set time
 #ifdef _DEBUG_
     Serial.println("\n\t" + strTime(rtc.now()));
 #endif
@@ -655,10 +654,10 @@ void SetupAlarm() {
     setMin      = set15Min(tMin);
     preheatTime = setMin == 0 ? 58 : setMin - 2;
     rtc.setAlarm1(DateTime(2023, 2, 18, 0, setMin, 0), DS3231_A1_Minute);
-    // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 0, 0), DS3231_A1_Minute);
-    // rtc.setAlarm2(DateTime(2023, 2, 18, 0, 30, 0), DS3231_A2_Minute);
-    // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 57, 0), DS3231_A1_Minute);
-    // rtc.setAlarm2(DateTime(2023, 2, 18, 0, 27, 0), DS3231_A2_Minute);
+// rtc.setAlarm1(DateTime(2023, 2, 18, 0, 0, 0), DS3231_A1_Minute);
+// rtc.setAlarm2(DateTime(2023, 2, 18, 0, 30, 0), DS3231_A2_Minute);
+// rtc.setAlarm1(DateTime(2023, 2, 18, 0, 57, 0), DS3231_A1_Minute);
+// rtc.setAlarm2(DateTime(2023, 2, 18, 0, 27, 0), DS3231_A2_Minute);
 #ifdef _DEBUG_
     Serial.print("Preheat Time: " + String(preheatTime) + "th min.");
     Serial.println(" | Tringger next time: " + String(setMin) + "th min.");
@@ -887,9 +886,9 @@ void ReadData() {
     // PMSA003A-------------/
     pms.read();
     if (pms) {  // successfull read
-        pm_01 = pms.pm01;
-        pm_25 = pms.pm25;
-        pm_10 = pms.pm10;
+        pm010 = pms.pm01;
+        pm025 = pms.pm25;
+        pm100 = pms.pm10;
     }
 
     ReadScd41();
@@ -906,7 +905,7 @@ void ReadData() {
     Serial.printf("DHT22: Temp: %.2f C | Humi: %.2f %%\n", tempDht22, humiDht22);
     Serial.printf("ENS160: AQI: %u | TVOC: %u ppb | eCO2: %u ppm\n", aqiEns160, tvocEns160, eco2Ens160);
     Serial.printf("MHZ19B: CO2: %d ppm\n", co2);
-    Serial.printf("PMSA003A: PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3\n", pm_01, pm_25, pm_10);
+    Serial.printf("PMSA003A: PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3\n", pm010, pm025, pm100);
     Serial.printf("SDC41: Temp: %.2f C | Humi: %.2f %% | CO2: %u ppm\n", tempScd41, humiScd41, co2Scd41);
     Serial.printf("SGP41: VOC Idx: %d | NOx Idx: %d\n", vocIdxSgp41, noxIdxSgp41);
     Serial.printf("SHT40: Temp: %.2f C | Humi: %.2f %%\n", tempSht40, humiSht40);
@@ -994,7 +993,6 @@ void SendData() {
     //  ]
 
     JsonDocument doc;
-
     doc.clear();
 
     JsonObject doc_0         = doc.add<JsonObject>();
@@ -1028,12 +1026,12 @@ void SendData() {
     doc_4["measurement"]   = "mhz19b";
     doc_4["fields"]["co2"] = co2;
 
-    JsonObject doc_5         = doc.add<JsonObject>();
-    doc_5["measurement"]     = "pmsa003a";
-    JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
-    root_5_fields["pm010"]   = pm_01;
-    root_5_fields["pm025"]   = pm_25;
-    root_5_fields["pm100"]   = pm_10;
+    // JsonObject doc_5         = doc.add<JsonObject>();
+    // doc_5["measurement"]     = "pmsa003a";
+    // JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
+    // root_5_fields["pm010"]   = pm010;
+    // root_5_fields["pm025"]   = pm025;
+    // root_5_fields["pm100"]   = pm100;
 
     JsonObject doc_6         = doc.add<JsonObject>();
     doc_6["measurement"]     = "scd41";
@@ -1059,9 +1057,7 @@ void SendData() {
     doc_9["fields"]["lux"] = lux;
 
     doc.shrinkToFit();  // optional
-
     char jsonBuffer[1024];
-
     serializeJson(doc, jsonBuffer);
 
     mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
@@ -1206,7 +1202,7 @@ void setup() {
 
     wifiManagerSetup();
     OtaWebUpdateSetup();
-
+    SyncRtc();
     SetupAlarm();
 
     mqtt.setBufferSize(1024);  // Max buffer size = 1024 bytes (default: 256 bytes)
