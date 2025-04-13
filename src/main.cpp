@@ -38,9 +38,9 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-#define _DEBUG_  // Uncomment this line if you want to debug
+// #define _DEBUG_  // Uncomment this line if you want to debug
 #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
-#define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
+// #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
@@ -222,7 +222,7 @@ HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial li
 #define pmsRX 18
 #define pmsTX 19
 uint16_t pm010, pm025, pm100;
-SerialPM pms(PMSx003, pmsRX, pmsTX);
+SerialPM pms(PMSx003, pmsRX, pmsTX); // SoftwareSerial
 
 // SCD41 CO2 Sensor
 #ifdef NO_ERROR
@@ -1026,12 +1026,12 @@ void SendData() {
     doc_4["measurement"]   = "mhz19b";
     doc_4["fields"]["co2"] = co2;
 
-    // JsonObject doc_5         = doc.add<JsonObject>();
-    // doc_5["measurement"]     = "pmsa003a";
-    // JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
-    // root_5_fields["pm010"]   = pm010;
-    // root_5_fields["pm025"]   = pm025;
-    // root_5_fields["pm100"]   = pm100;
+    JsonObject doc_5         = doc.add<JsonObject>();
+    doc_5["measurement"]     = "pmsa003a";
+    JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
+    root_5_fields["pm010"]   = pm010;
+    root_5_fields["pm025"]   = pm025;
+    root_5_fields["pm100"]   = pm100;
 
     JsonObject doc_6         = doc.add<JsonObject>();
     doc_6["measurement"]     = "scd41";
@@ -1178,7 +1178,8 @@ void setup() {
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
-                                                       // PMSA003
+                                                       
+    // PMSA003
     pms.init();
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
