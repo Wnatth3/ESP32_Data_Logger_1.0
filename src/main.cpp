@@ -39,7 +39,7 @@ Log:
 
 //******************************** Configulation ****************************//
 // #define _DEBUG_  // Uncomment this line if you want to debug
-#define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
+// #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
 //******************************** Global Variables *************************//
@@ -162,7 +162,7 @@ PubSubClient mqtt(mqttClient);
 
 //----------------- Time Setup ----------------//
 // Sync Time with NTP Server
-#ifdef syncRtcWithNtp
+// #ifdef syncRtcWithNtp
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 WiFiUDP ntpUDP;
@@ -170,7 +170,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "time.google.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.facebook.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.apple.com", 25200 /*GMT +7*/);
-#endif
+// #endif
 
 //----------------- DS3231  Real Time Clock --//
 #define SQW_PIN 33  // pin 33 for external Wake Up (ext1)
@@ -596,7 +596,7 @@ void SyncRtc() {
         // Serial.flush();
         // while (1) delay(10);
     }
-#ifdef syncRtcWithNtp
+// #ifdef syncRtcWithNtp
     // Setup time with NTPClient library.
     timeClient.begin();
     timeClient.forceUpdate();
@@ -610,7 +610,7 @@ void SyncRtc() {
         Serial.println("\nSetup time from NTP server failed.");
 #endif
     }
-#endif
+// #endif
 }
 
 void SetupAlarm() {
@@ -998,8 +998,8 @@ void SendData() {
     JsonObject doc_0         = doc.add<JsonObject>();
     doc_0["measurement"]     = "aht21";
     JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
-    root_0_fields["temp"]    = tempDht22;
-    root_0_fields["humi"]    = humiDht22;
+    root_0_fields["temp"]    = tempAht21;
+    root_0_fields["humi"]    = humiAht21;
 
     JsonObject doc_1         = doc.add<JsonObject>();
     doc_1["measurement"]     = "bme680";
@@ -1182,9 +1182,20 @@ void setup() {
     // PMSA003
     pms.init();
     // SCD41
-    scd41.begin(Wire, SCD41_I2C_ADDR_62);
-    float temperatureOffset = 0.0;
-    scd41.getTemperatureOffset(temperatureOffset);
+    scd41.begin(Wire, SCD41_I2C_ADDR_62);    
+    // float tempOffset;
+    // uint16_t tempOffsetRaw;
+    // scd41.getTemperatureOffset(tempOffset);
+    // Serial.print(F("tempOffset: "));
+    // Serial.println(tempOffset,2);
+    scd41.setTemperatureOffset(3.0f);   
+    scd41.setSensorAltitude(310);  // Set altitude to 0m (default)
+    // scd41.getTemperatureOffset(tempOffset);
+    // Serial.print(F("tempOffset: "));
+    // Serial.println(tempOffset,2);
+    // scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    // Serial.print(F("tempOffsetRaw: "));
+    // Serial.println(tempOffsetRaw);
 #ifdef _20SecTest
     scd41.startPeriodicMeasurement();
 #endif
