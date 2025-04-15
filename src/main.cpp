@@ -38,10 +38,14 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-// #define _DEBUG_  // Uncomment this line if you want to debug
+#define _DEBUG_  // Uncomment this line if you want to debug
 // #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
+// Read Sensores every 5, 10, 15 minutes
+// #define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
+#define _10Min  // Uncomment this line if you want to read sensors every 10 minutes
+// #define _15Min  // Uncomment this line if you want to read sensors every 15 minutes
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
 
@@ -222,7 +226,7 @@ HardwareSerial mySerial(2);  // On ESP32 we do not require the SoftwareSerial li
 #define pmsRX 18
 #define pmsTX 19
 uint16_t pm010, pm025, pm100;
-SerialPM pms(PMSx003, pmsRX, pmsTX); // SoftwareSerial
+SerialPM pms(PMSx003, pmsRX, pmsTX);  // SoftwareSerial
 
 // SCD41 CO2 Sensor
 #ifdef NO_ERROR
@@ -299,7 +303,7 @@ TickTwo tReconnectMqtt(reconnectMqtt, 3000, 0, MILLIS);
 // callback notifying us of the need to save config
 void saveConfigCallback() {
 #ifdef _DEBUG_
-    Serial.println("Should save config");
+    Serial.println(F("Should save config"));
 #endif
     shouldSaveConfig = true;
 }
@@ -310,27 +314,27 @@ void wifiManagerSetup() {
 
     // read configuration from FS json
 #ifdef _DEBUG_
-    Serial.println("mounting FS...");
+    Serial.println(F("mounting FS..."));
 #endif
 
     if (SPIFFS.begin()) {
 #ifdef _DEBUG_
-        Serial.println("Mounted file system");
+        Serial.println(F("Mounted file system"));
 #endif
         if (SPIFFS.exists("/config.json")) {
 // File exists, reading and loading
 #ifdef _DEBUG_
-            Serial.println("Reading config file");
+            Serial.println(F("Reading config file"));
 #endif
             File configFile = SPIFFS.open("/config.json", "r");
             if (configFile) {
 #ifdef _DEBUG_
-                Serial.println("Opened config file");
+                Serial.println(F("Opened config file"));
 #endif
                 size_t size = configFile.size();
                 if (size > 1024) {
 #ifdef _DEBUG_
-                    Serial.println("Config file size is too large");
+                    Serial.println(F("Config file size is too large"));
 #endif
                     return;
                 }
@@ -342,12 +346,12 @@ void wifiManagerSetup() {
                 DeserializationError error = deserializeJson(json, buf.get());
                 if (error) {
 #ifdef _DEBUG_
-                    Serial.println("Failed to parse config file");
+                    Serial.println(F("Failed to parse config file"));
 #endif
                     return;
                 }
 #ifdef _DEBUG_
-                Serial.println("Parsed JSON");
+                Serial.println(F("Parsed JSON"));
 #endif
                 strcpy(mqtt_server, json["mqtt_server"]);
                 strcpy(mqtt_port, json["mqtt_port"]);
@@ -356,7 +360,7 @@ void wifiManagerSetup() {
 
                 if (json["ip"].is<const char*>()) {
 #ifdef _DEBUG_
-                    Serial.println("Setting custom IP from config");
+                    Serial.println(F("Setting custom IP from config"));
 #endif
                     strcpy(static_ip, json["ip"]);
                     strcpy(static_gw, json["gateway"]);
@@ -364,22 +368,22 @@ void wifiManagerSetup() {
                     strcpy(static_dns, json["dns"]);
                 } else {
 #ifdef _DEBUG_
-                    Serial.println("No custom IP in config");
+                    Serial.println(F("No custom IP in config"));
 #endif
                 }
             } else {
 #ifdef _DEBUG_
-                Serial.println("Failed to open config file");
+                Serial.println(F("Failed to open config file"));
 #endif
             }
         } else {
 #ifdef _DEBUG_
-            Serial.println("Config file does not exist");
+            Serial.println(F("Config file does not exist"));
 #endif
         }
     } else {
 #ifdef _DEBUG_
-        Serial.println("Failed to mount FS");
+        Serial.println(F("Failed to mount FS"));
 #endif
     }
     // end read
@@ -425,7 +429,7 @@ void wifiManagerSetup() {
     // and goes into a blocking loop awaiting configuration
     if (!wifiManager.autoConnect(deviceName, "password")) {
 #ifdef _DEBUG_
-        Serial.println("failed to connect and hit timeout");
+        Serial.println(F("failed to connect and hit timeout"));
 #endif
         delay(3000);
         // reset and try again, or maybe put it to deep sleep
@@ -435,7 +439,7 @@ void wifiManagerSetup() {
 
 // if you get here you have connected to the WiFi
 #ifdef _DEBUG_
-    Serial.println("WiFi connected...yeey :)");
+    Serial.println(F("WiFi connected...yeey :)"));
 #endif
 
     // read updated parameters
@@ -444,7 +448,7 @@ void wifiManagerSetup() {
     strcpy(mqtt_user, custom_mqtt_user.getValue());
     strcpy(mqtt_pass, custom_mqtt_pass.getValue());
 #ifdef _DEBUG_
-    Serial.println("The values in the file are: ");
+    Serial.println(F("The values in the file are: "));
     Serial.println("\tmqtt_server : " + String(mqtt_server));
     Serial.println("\tmqtt_port : " + String(mqtt_port));
     Serial.println("\tmqtt_user : " + String(mqtt_user));
@@ -454,7 +458,7 @@ void wifiManagerSetup() {
     // save the custom parameters to FS
     if (shouldSaveConfig) {
 #ifdef _DEBUG_
-        Serial.println("saving config");
+        Serial.println(F("saving config"));
 #endif
         JsonDocument json;
         json["mqtt_server"] = mqtt_server;
@@ -470,7 +474,7 @@ void wifiManagerSetup() {
         File configFile = SPIFFS.open("/config.json", "w");
         if (!configFile) {
 #ifdef _DEBUG_
-            Serial.println("failed to open config file for writing");
+            Serial.println(F("failed to open config file for writing"));
 #endif
         }
 
@@ -480,7 +484,7 @@ void wifiManagerSetup() {
         // end save
     }
 #ifdef _DEBUG_
-    Serial.println("local ip: ");
+    Serial.println(F("local ip: "));
     Serial.println(WiFi.localIP());
     Serial.println(WiFi.gatewayIP());
     Serial.println(WiFi.subnetMask());
@@ -491,7 +495,7 @@ void wifiManagerSetup() {
 void resetWifiBtPressed() {
     statusLed.turnON();
 #ifdef _DEBUG_
-    Serial.println("WiFi resetting started.");
+    Serial.println(F("WiFi resetting started."));
 #endif
     SPIFFS.format();
     wifiManager.resetSettings();
@@ -507,14 +511,14 @@ void OtaWebUpdateSetup() {
     /*use mdns for host name resolution*/
     if (!MDNS.begin(deviceName)) {  // http://deviceName.local
 #ifdef _DEBUG_
-        Serial.println("Error setting up MDNS responder!");
+        Serial.println(F("Error setting up MDNS responder!"));
 #endif
         while (1) {
             delay(500);  // Default is 1000
         }
     }
 #ifdef _DEBUG_
-    Serial.println("mDNS responder started");
+    Serial.println(F("mDNS responder started"));
 #endif
 
     /*return index page which is stored in ud */
@@ -567,7 +571,7 @@ void OtaWebUpdateSetup() {
 
     server.begin();
 #ifdef _DEBUG_
-    Serial.println("\tOTA Web updater setting is done.");
+    Serial.println(F("\tOTA Web updater setting is done."));
 #endif
 }
 //----------------- Time Setup ----------------//
@@ -579,9 +583,17 @@ String strTime(DateTime t) {
 // uint8_t preheatTime(uint8_t setMin) { return setMin == 0 ? 57 : setMin -3;}
 
 // Set the time to 0, 15, 30, 45 min
-uint8_t set15Min(uint8_t a) {
+uint8_t setMinMatch(uint8_t a) {
     if (a >= 0 && a <= 59) {
+#ifdef _5Min
+        return ((a / 5) + 1) * 5 % 60;
+#endif
+#ifdef _10Min
+        return ((a / 10) + 1) * 10 % 60;
+#endif
+#ifdef _15Min
         return ((a / 15) + 1) * 15 % 60;
+#endif
     }
     return 0;
 }
@@ -591,26 +603,26 @@ uint8_t roundSec(uint8_t sec) { return sec > 60 ? sec - 60 : sec; }
 void SyncRtc() {
     if (!rtc.begin()) {
 #ifdef _DEBUG_
-        Serial.println("Couldn't find RTC!");
+        Serial.println(F("Couldn't find RTC!"));
 #endif
         // Serial.flush();
         // while (1) delay(10);
     }
-// #ifdef syncRtcWithNtp
+    // #ifdef syncRtcWithNtp
     // Setup time with NTPClient library.
     timeClient.begin();
     timeClient.forceUpdate();
     if (timeClient.isTimeSet()) {
         rtc.adjust(DateTime(timeClient.getEpochTime()));
 #ifdef _DEBUG_
-        Serial.println("\nSetup time from NTP server succeeded.");
+        Serial.println(F("\nSetup time from NTP server succeeded."));
 #endif
     } else {
 #ifdef _DEBUG_
-        Serial.println("\nSetup time from NTP server failed.");
+        Serial.println(F("\nSetup time from NTP server failed."));
 #endif
     }
-// #endif
+    // #endif
 }
 
 void SetupAlarm() {
@@ -641,7 +653,7 @@ void SetupAlarm() {
 #ifdef _20SecTest
     // Set alarm time
     rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 20), DS3231_A1_Second);  // Test
-    Serial.print("Trigger next time: ");
+    Serial.print(F("Trigger next time: "));
     Serial.println(String(roundSec(rtc.now().second() + 20)) + "th sec.");
 
 #else
@@ -650,8 +662,8 @@ void SetupAlarm() {
 #ifdef _DEBUG_
     Serial.println("tMin: " + String(tMin));
 #endif
-    // uint8_t setMin = set15Min(tMin);
-    setMin      = set15Min(tMin);
+    // uint8_t setMin = setMinMatch(tMin);
+    setMin      = setMinMatch(tMin);
     preheatTime = setMin == 0 ? 58 : setMin - 2;
     rtc.setAlarm1(DateTime(2023, 2, 18, 0, setMin, 0), DS3231_A1_Minute);
 // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 0, 0), DS3231_A1_Minute);
@@ -666,60 +678,71 @@ void SetupAlarm() {
 #endif
 
 #ifdef _DEBUG_
-    Serial.println("\tThe alarm setting is done.");
+    Serial.println(F("\tThe alarm setting is done."));
 #endif
 }
 
 void IRAM_ATTR onRtcTrigger() { rtcTrigger = true; }
 
 // 15 minute match 0, 15, 30, and 45
-bool t15MinMatch(int tMin) { return tMin >= 0 && tMin % 15 == 0 && tMin < 60; }
+bool checkMinMatch(int tMin) {
+#ifdef _5Min
+    return tMin >= 0 && tMin % 5 == 0 && tMin < 60;
+#endif
+#ifdef _10Min
+    return tMin >= 0 && tMin % 10 == 0 && tMin < 60;
+#endif
+#ifdef _15Min
+    return tMin >= 0 && tMin % 15 == 0 && tMin < 60;
+#endif
+}
 
 //----------------- Collect Data --------------//
 
 void ReadScd41() {
 #ifdef _20SecTest
+    bool dataReady = false;
 
 #ifdef _DEBUG_
-    bool dataReady = false;
-    scd41Error     = scd41.getDataReadyStatus(dataReady);
+    scd41Error = scd41.getDataReadyStatus(dataReady);
     if (scd41Error != NO_ERROR) {
+        Serial.print(F()"Error trying to execute getDataReadyStatus(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        // #ifdef _DEBUG_
-        Serial.print("Error trying to execute getDataReadyStatus(): ");
         Serial.println(scd41ErrorMessage);
-        // #endif
         return;
     }
-
     while (!dataReady) {
         delay(100);
         scd41Error = scd41.getDataReadyStatus(dataReady);
         if (scd41Error != NO_ERROR) {
+            Serial.print(F("Error trying to execute getDataReadyStatus(): "));
             errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-            // #ifdef _DEBUG_
-            Serial.print("Error trying to execute getDataReadyStatus(): ");
             Serial.println(scd41ErrorMessage);
-            // #endif
             return;
         }
     }
-#endif
-
+    //
     // If ambient pressure compenstation during measurement
     // is required, you should call the respective functions here.
     // Check out the header file for the function definition.
     scd41Error = scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
-
-#ifdef _DEBUG_
     if (scd41Error != NO_ERROR) {
+        Serial.print(F("Error trying to execute readMeasurement(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        // #ifdef _DEBUG_
-        Serial.print("Error trying to execute readMeasurement(): ");
         Serial.println(scd41ErrorMessage);
-        // #endif
         return;
     }
+
+#else
+
+    scd41.getDataReadyStatus(dataReady);
+    while (!dataReady) {
+        delay(100);
+    }
+    // If ambient pressure compenstation during measurement
+    // is required, you should call the respective functions here.
+    // Check out the header file for the function definition.
+    scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
 #endif
 
 #else
@@ -729,35 +752,36 @@ void ReadScd41() {
     // Wake the sensor up from sleep mode.
     scd41Error = scd41.wakeUp();
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute wakeUp(): ");
+        Serial.print(F("Error trying to execute wakeUp(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
     }
-    //
     // Ignore first measurement after wake up.
-    //
     scd41Error = scd41.measureSingleShot();
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute measureSingleShot(): ");
+        Serial.print(F("Error trying to execute measureSingleShot(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
     }
-
-#endif
-    //
     // Perform single shot measurement and read data.
-    //
-    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
-
-#ifdef _DEBUG_
+    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41,
+                                                humiScd41);
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute measureAndReadSingleShot(): ");
+        Serial.print(F("Error trying to execute measureAndReadSingleShot(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
     }
+
+#else
+    // Wake the sensor up from sleep mode.
+    scd41.wakeUp();
+    // Ignore first measurement after wake up.
+    scd41.measureSingleShot();
+    // Perform single shot measurement and read data.
+    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
 #endif
 
 #endif
@@ -783,9 +807,9 @@ void ReadSht40Sgp41() {
     if (sgp41Error) {
         errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
-        Serial.print("SHT4x - Error trying to execute measureHighPrecision(): ");
+        Serial.print(F("SHT4x - Error trying to execute measureHighPrecision(): "));
         Serial.println(sgp41ErrorMessage);
-        Serial.println("Fallback to use default values for humidity and temperature compensation for SGP41");
+        Serial.println(F("Fallback to use default values for humidity and temperature compensation for SGP41"));
 #endif
         compensationRh = defaultCompenstaionRh;
         compensationT  = defaultCompenstaionT;
@@ -814,7 +838,7 @@ void ReadSht40Sgp41() {
     if (sgp41Error) {
         errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
-        Serial.print("SGP41 - Error trying to execute measureRawSignals(): ");
+        Serial.print(F("SGP41 - Error trying to execute measureRawSignals(): "));
         Serial.println(sgp41ErrorMessage);
 #endif
     } else {
@@ -826,7 +850,7 @@ void ReadSht40Sgp41() {
 void Sgp41HeatingOn() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOn.counter() == 1) {
-        Serial.println("Sgp41HeatingOn: First Time");
+        Serial.println(F("Sgp41HeatingOn: First Time"));
     }
 #endif
 
@@ -841,7 +865,7 @@ void Sgp41HeatingOn() {
 void Sgp41HeatingOff() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOff.counter() == 1) {
-        Serial.println("Sgp41HeatingOff: First Time");
+        Serial.println(F("Sgp41HeatingOff: First Time"));
     }
 #endif
 
@@ -1064,7 +1088,7 @@ void SendData() {
 
 #ifdef _DEBUG_
     // Serial.println("JSON: " + String(jsonBuffer));
-    Serial.println("\nData sending is done.");
+    Serial.println(F("\nData sending is done."));
 #endif
 }
 
@@ -1078,18 +1102,26 @@ void IRAM_ATTR fetchData() {
 #else
 
 #ifdef _DEBUG_
-    Serial.print("15min Match: ");
-    Serial.println(t15MinMatch(tMin) ? "true" : "false");
+#ifdef _5Min
+    Serial.print(F("5min Match: "));
 #endif
-    if (t15MinMatch(tMin)) {
+#ifdef _10Min
+    Serial.print(F("10min Match: "));
+#endif
+#ifdef _15Min
+    Serial.print(F("15min Match: "));
+#endif
+    Serial.println(checkMinMatch(tMin) ? "true" : "false");
+#endif
+    if (checkMinMatch(tMin)) {
         ReadData();
         SendData();
 #ifdef _DEBUG_
-        Serial.println("\tdata reading is done.");
+        Serial.println(F("\tdata reading is done."));
 #endif
     } else {
 #ifdef _DEBUG_
-        Serial.println("\tread data next time.");
+        Serial.println(F("\tread data next time."));
 #endif
     }
 
@@ -1108,12 +1140,12 @@ void wifiDisconnectedDetect() {
 void reconnectMqtt() {
     if (WiFi.status() == WL_CONNECTED) {
 #ifdef _DEBUG_
-        Serial.print("Connecting MQTT... ");
+        Serial.print(F("Connecting MQTT... "));
 #endif
         if (mqtt.connect(deviceName, mqtt_user, mqtt_pass)) {
             tReconnectMqtt.stop();
 #ifdef _DEBUG_
-            Serial.println("connected");
+            Serial.println(F("connected"));
 #endif
             tConnectMqtt.interval(0);
             tConnectMqtt.start();
@@ -1133,7 +1165,7 @@ void reconnectMqtt() {
     } else {
         if (tReconnectMqtt.counter() <= 1) {
 #ifdef _DEBUG_
-            Serial.println("WiFi is not connected");
+            Serial.println(F("WiFi is not connected"));
 #endif
         }
     }
@@ -1178,24 +1210,40 @@ void setup() {
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
-                                                       
+
     // PMSA003
     pms.init();
     // SCD41
-    scd41.begin(Wire, SCD41_I2C_ADDR_62);    
-    // float tempOffset;
-    // uint16_t tempOffsetRaw;
-    // scd41.getTemperatureOffset(tempOffset);
-    // Serial.print(F("tempOffset: "));
-    // Serial.println(tempOffset,2);
-    scd41.setTemperatureOffset(3.0f);   
-    scd41.setSensorAltitude(310);  // Set altitude to 0m (default)
-    // scd41.getTemperatureOffset(tempOffset);
-    // Serial.print(F("tempOffset: "));
-    // Serial.println(tempOffset,2);
-    // scd41.getTemperatureOffsetRaw(tempOffsetRaw);
-    // Serial.print(F("tempOffsetRaw: "));
-    // Serial.println(tempOffsetRaw);
+    scd41.begin(Wire, SCD41_I2C_ADDR_62);
+    scd41.wakeUp();
+    scd41.stopPeriodicMeasurement();
+    scd41.reinit();
+    // uint64_t serialNumber = 0;
+    // scd41.getSerialNumber(serialNumber);
+
+    // float tempOffset = 4.0;
+    float    tempOffset;
+    uint16_t tempOffsetRaw;
+#ifdef _DEBUG_
+    scd41.getTemperatureOffset(tempOffset);
+    Serial.print(F("TempOffset: "));
+    Serial.println(tempOffset, 2);
+    scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    Serial.print(F("TempOffsetRaw: "));
+    Serial.print(175 * tempOffsetRaw / 65535);
+    Serial.println(" C");
+#endif
+    scd41.setTemperatureOffset(2.9f);  // Set temperature offset to 4.0 degree Celsius
+    scd41.setSensorAltitude(310);      // Set altitude to 0m (default)
+#ifdef _DEBUG_
+    scd41.getTemperatureOffset(tempOffset);
+    Serial.print(F("After_tempOffset: "));
+    Serial.println(tempOffset, 2);
+    scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    Serial.print(F("After_TempOffsetRaw: "));
+    Serial.print(175 * tempOffsetRaw / 65535);
+    Serial.println(" C");
+#endif
 #ifdef _20SecTest
     scd41.startPeriodicMeasurement();
 #endif
