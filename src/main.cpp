@@ -42,9 +42,9 @@ Log:
 // #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
-// Read Sensores every 5, 10, 15 minutes
-// #define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
-#define _10Min  // Uncomment this line if you want to read sensors every 10 minutes
+// ----- Read Sensores every 5, 10, 15 minutes ----- //
+#define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
+// #define _10Min  // Uncomment this line if you want to read sensors every 10 minutes
 // #define _15Min  // Uncomment this line if you want to read sensors every 15 minutes
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
@@ -706,7 +706,7 @@ void ReadScd41() {
 #ifdef _DEBUG_
     scd41Error = scd41.getDataReadyStatus(dataReady);
     if (scd41Error != NO_ERROR) {
-        Serial.print(F()"Error trying to execute getDataReadyStatus(): "));
+        Serial.print(F("Error trying to execute getDataReadyStatus(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
@@ -924,98 +924,72 @@ void ReadData() {
     humiDht22 = dht.readHumidity();
 
 #ifdef _DEBUG_
-    Serial.printf("AHT21: Temp: %.2f C | Humi: %.2f %%\n", tempAht21, humiAht21);
-    Serial.printf("BME680: Temp: %.2f C | Humi: %.2f %% | Gas Resist: %.2f kohm\n", tempBme680, humiBme680, gasResBme680);
-    Serial.printf("DHT22: Temp: %.2f C | Humi: %.2f %%\n", tempDht22, humiDht22);
-    Serial.printf("ENS160: AQI: %u | TVOC: %u ppb | eCO2: %u ppm\n", aqiEns160, tvocEns160, eco2Ens160);
-    Serial.printf("MHZ19B: CO2: %d ppm\n", co2);
-    Serial.printf("PMSA003A: PM1.0: %u ug/m3 | PM2.5: %u ug/m3 | PM10: %u ug/m3\n", pm010, pm025, pm100);
-    Serial.printf("SDC41: Temp: %.2f C | Humi: %.2f %% | CO2: %u ppm\n", tempScd41, humiScd41, co2Scd41);
-    Serial.printf("SGP41: VOC Idx: %d | NOx Idx: %d\n", vocIdxSgp41, noxIdxSgp41);
-    Serial.printf("SHT40: Temp: %.2f C | Humi: %.2f %%\n", tempSht40, humiSht40);
-    Serial.printf("VEML7700: Lux: %.2f\n", lux);
+    Serial.print(F("AHT21: Temp: "));
+    Serial.print(tempAht21, 2);
+    Serial.print(F(" C | Humi: "));
+    Serial.print(humiAht21, 2);
+    Serial.println(F(" %"));
+
+    Serial.print(F("BME680: Temp: "));
+    Serial.print(tempBme680, 2);
+    Serial.print(F(" C | Humi: "));
+    Serial.print(humiBme680, 2);
+    Serial.print(F(" % | Gas Resist: "));
+    Serial.print(gasResBme680, 2);
+    Serial.println(F(" kohm"));
+
+    Serial.print(F("DHT22: Temp: "));
+    Serial.print(tempDht22, 2);
+    Serial.print(F(" C | Humi: "));
+    Serial.print(humiDht22, 2);
+    Serial.println(F(" %"));
+
+    Serial.print(F("ENS160: AQI: "));
+    Serial.print(aqiEns160);
+    Serial.print(F(" | TVOC: "));
+    Serial.print(tvocEns160);
+    Serial.print(F(" ppb | eCO2: "));
+    Serial.print(eco2Ens160);
+    Serial.println(F(" ppm"));
+
+    Serial.print(F("MHZ19B: CO2: "));
+    Serial.print(co2);
+    Serial.println(F(" ppm"));
+
+    Serial.print(F("PMSA003A: PM1.0: "));
+    Serial.print(pm010);
+    Serial.print(F(" ug/m3 | PM2.5: "));
+    Serial.print(pm025);
+    Serial.print(F(" ug/m3 | PM10: "));
+    Serial.print(pm100);
+    Serial.println(F(" ug/m3"));
+
+    Serial.print(F("SDC41: Temp: "));
+    Serial.print(tempScd41, 2);
+    Serial.print(F(" C | Humi: "));
+    Serial.print(humiScd41, 2);
+    Serial.print(F(" % | CO2: "));
+    Serial.print(co2Scd41);
+    Serial.println(F(" ppm"));
+
+    Serial.print(F("SGP41: VOC Idx: "));
+    Serial.print(vocIdxSgp41);
+    Serial.print(F(" | NOx Idx: "));
+    Serial.println(noxIdxSgp41);
+
+    Serial.print(F("SHT40: Temp: "));
+    Serial.print(tempSht40, 2);
+    Serial.print(F(" C | Humi: "));
+    Serial.print(humiSht40, 2);
+    Serial.println(F(" %"));
+
+    Serial.print(F("VEML7700: Lux: "));
+    Serial.print(lux, 2);
+    Serial.println();
 #endif
 }
 
 void SendData() {
-    // ArduinoJson Assistant: https://arduinojson.org/v7/assistant/#/step1
-
-    // [
-    //     {
-    //        "measurement":"aht21",
-    //        "fields":{
-    //           "temp":5.5,
-    //           "humi":678
-    //        }
-    //     },
-    //     {
-    //        "measurement":"bme680",
-    //        "fields":{
-    //           "temp":5.5,
-    //           "humi":678,
-    //           "press":51,
-    //           "gasRes":51
-    //        }
-    //     },
-    //     {
-    //        "measurement":"dht22",
-    //        "fields":{
-    //           "temp":999,
-    //           "humi":19.5
-    //        }
-    //     },
-    //     {
-    //        "measurement":"ens160",
-    //        "fields":{
-    //           "aqi":999,
-    //           "tVoc":19.5,
-    //           "eCo2":1235
-    //        }
-    //     },
-    //     {
-    //        "measurement":"mhz19b",
-    //        "fields":{
-    //           "co2":999
-    //        }
-    //     },
-    //     {
-    //        "measurement":"pmsa003a",
-    //        "fields":{
-    //           "pm010":999,
-    //           "pm025":999,
-    //           "pm100":999
-    //        }
-    //     },
-    //     {
-    //        "measurement":"scd41",
-    //        "fields":{
-    //           "temp":100,
-    //           "humi":1,
-    //           "co2":1,
-    //        }
-    //     },
-    //     {
-    //        "measurement":"sgp41",
-    //        "fields":{
-    //           "vocIdx":100,
-    //           "noxIdx":1
-    //        }
-    //     },
-    //     {
-    //        "measurement":"sht40",
-    //        "fields":{
-    //           "temp":25.3,
-    //           "humi":30.2
-    //        }
-    //     },
-    //     {
-    //        "measurement":"veml7700",
-    //        "fields":{
-    //           "lux":999
-    //        }
-    //     }
-    //  ]
-
     JsonDocument doc;
     doc.clear();
 
@@ -1102,6 +1076,7 @@ void IRAM_ATTR fetchData() {
 #else
 
 #ifdef _DEBUG_
+
 #ifdef _5Min
     Serial.print(F("5min Match: "));
 #endif
@@ -1113,6 +1088,7 @@ void IRAM_ATTR fetchData() {
 #endif
     Serial.println(checkMinMatch(tMin) ? "true" : "false");
 #endif
+
     if (checkMinMatch(tMin)) {
         ReadData();
         SendData();
@@ -1122,6 +1098,7 @@ void IRAM_ATTR fetchData() {
     } else {
 #ifdef _DEBUG_
         Serial.println(F("\tread data next time."));
+
 #endif
     }
 
@@ -1235,6 +1212,7 @@ void setup() {
 #endif
     scd41.setTemperatureOffset(2.9f);  // Set temperature offset to 4.0 degree Celsius
     scd41.setSensorAltitude(310);      // Set altitude to 0m (default)
+    scd41.persistSettings();           // Save settings to EEPROM
 #ifdef _DEBUG_
     scd41.getTemperatureOffset(tempOffset);
     Serial.print(F("After_tempOffset: "));
