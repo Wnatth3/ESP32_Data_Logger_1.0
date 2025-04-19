@@ -42,7 +42,7 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-// #define _DEBUG_  // Uncomment this line if you want to debug
+#define _DEBUG_  // Uncomment this line if you want to debug
 // #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
@@ -325,7 +325,7 @@ TickTwo tReconnectMqtt(reconnectMqtt, 3000, 0, MILLIS);
 // callback notifying us of the need to save config
 void saveConfigCallback() {
 #ifdef _DEBUG_
-    Serial.println("Should save config");
+    Serial.println(F("Should save config"));
 #endif
     shouldSaveConfig = true;
 }
@@ -336,27 +336,27 @@ void wifiManagerSetup() {
 
     // read configuration from FS json
 #ifdef _DEBUG_
-    Serial.println("mounting FS...");
+    Serial.println(F("mounting FS..."));
 #endif
 
     if (SPIFFS.begin()) {
 #ifdef _DEBUG_
-        Serial.println("Mounted file system");
+        Serial.println(F("Mounted file system"));
 #endif
         if (SPIFFS.exists("/config.json")) {
 // File exists, reading and loading
 #ifdef _DEBUG_
-            Serial.println("Reading config file");
+            Serial.println(F("Reading config file"));
 #endif
             File configFile = SPIFFS.open("/config.json", "r");
             if (configFile) {
 #ifdef _DEBUG_
-                Serial.println("Opened config file");
+                Serial.println(F("Opened config file"));
 #endif
                 size_t size = configFile.size();
                 if (size > 1024) {
 #ifdef _DEBUG_
-                    Serial.println("Config file size is too large");
+                    Serial.println(F("Config file size is too large"));
 #endif
                     return;
                 }
@@ -368,12 +368,12 @@ void wifiManagerSetup() {
                 DeserializationError error = deserializeJson(json, buf.get());
                 if (error) {
 #ifdef _DEBUG_
-                    Serial.println("Failed to parse config file");
+                    Serial.println(F("Failed to parse config file"));
 #endif
                     return;
                 }
 #ifdef _DEBUG_
-                Serial.println("Parsed JSON");
+                Serial.println(F("Parsed JSON"));
 #endif
                 strcpy(mqtt_server, json["mqtt_server"]);
                 strcpy(mqtt_port, json["mqtt_port"]);
@@ -382,7 +382,7 @@ void wifiManagerSetup() {
 
                 if (json["ip"].is<const char*>()) {
 #ifdef _DEBUG_
-                    Serial.println("Setting custom IP from config");
+                    Serial.println(F("Setting custom IP from config"));
 #endif
                     strcpy(static_ip, json["ip"]);
                     strcpy(static_gw, json["gateway"]);
@@ -390,22 +390,22 @@ void wifiManagerSetup() {
                     strcpy(static_dns, json["dns"]);
                 } else {
 #ifdef _DEBUG_
-                    Serial.println("No custom IP in config");
+                    Serial.println(F("No custom IP in config"));
 #endif
                 }
             } else {
 #ifdef _DEBUG_
-                Serial.println("Failed to open config file");
+                Serial.println(F("Failed to open config file"));
 #endif
             }
         } else {
 #ifdef _DEBUG_
-            Serial.println("Config file does not exist");
+            Serial.println(F("Config file does not exist"));
 #endif
         }
     } else {
 #ifdef _DEBUG_
-        Serial.println("Failed to mount FS");
+        Serial.println(F("Failed to mount FS"));
 #endif
     }
     // end read
@@ -451,7 +451,7 @@ void wifiManagerSetup() {
     // and goes into a blocking loop awaiting configuration
     if (!wifiManager.autoConnect(deviceName, "password")) {
 #ifdef _DEBUG_
-        Serial.println("failed to connect and hit timeout");
+        Serial.println(F("failed to connect and hit timeout"));
 #endif
         delay(3000);
         // reset and try again, or maybe put it to deep sleep
@@ -461,7 +461,7 @@ void wifiManagerSetup() {
 
 // if you get here you have connected to the WiFi
 #ifdef _DEBUG_
-    Serial.println("WiFi connected...yeey :)");
+    Serial.println(F("WiFi connected...yeey :)"));
 #endif
 
     // read updated parameters
@@ -470,7 +470,7 @@ void wifiManagerSetup() {
     strcpy(mqtt_user, custom_mqtt_user.getValue());
     strcpy(mqtt_pass, custom_mqtt_pass.getValue());
 #ifdef _DEBUG_
-    Serial.println("The values in the file are: ");
+    Serial.println(F("The values in the file are: "));
     Serial.println("\tmqtt_server : " + String(mqtt_server));
     Serial.println("\tmqtt_port : " + String(mqtt_port));
     Serial.println("\tmqtt_user : " + String(mqtt_user));
@@ -496,7 +496,7 @@ void wifiManagerSetup() {
         File configFile = SPIFFS.open("/config.json", "w");
         if (!configFile) {
 #ifdef _DEBUG_
-            Serial.println("failed to open config file for writing");
+            Serial.println(F("failed to open config file for writing"));
 #endif
         }
 
@@ -506,7 +506,7 @@ void wifiManagerSetup() {
         // end save
     }
 #ifdef _DEBUG_
-    Serial.println("local ip: ");
+    Serial.println(F("local ip: "));
     Serial.println(WiFi.localIP());
     Serial.println(WiFi.gatewayIP());
     Serial.println(WiFi.subnetMask());
@@ -517,12 +517,13 @@ void wifiManagerSetup() {
 void resetWifiBtPressed() {
     statusLed.turnON();
 #ifdef _DEBUG_
-    Serial.println("WiFi resetting started.");
+    Serial.println(F("WiFi resetting started."));
 #endif
     SPIFFS.format();
     wifiManager.resetSettings();
 #ifdef _DEBUG_
-    Serial.println(String(deviceName) + " is restarting.");
+    Serial.print(F(deviceName));
+    Serial.println(F(" is restarting."));
 #endif
     ESP.restart();
 }
@@ -533,14 +534,14 @@ void OtaWebUpdateSetup() {
     /*use mdns for host name resolution*/
     if (!MDNS.begin(deviceName)) {  // http://deviceName.local
 #ifdef _DEBUG_
-        Serial.println("Error setting up MDNS responder!");
+        Serial.println(F("Error setting up MDNS responder!"));
 #endif
         while (1) {
             delay(500);  // Default is 1000
         }
     }
 #ifdef _DEBUG_
-    Serial.println("mDNS responder started");
+    Serial.println(F("mDNS responder started"));
 #endif
 
     /*return index page which is stored in ud */
@@ -588,7 +589,7 @@ void OtaWebUpdateSetup() {
 
     server.begin();
 #ifdef _DEBUG_
-    Serial.println("\tOTA Web updater setting is done.");
+    Serial.println(F("\tOTA Web updater setting is done."));
 #endif
 }
 //----------------- Time Setup ----------------//
@@ -602,7 +603,8 @@ String strTime(DateTime t) {
 // Set the time to 0, 15, 30, 45 min
 uint8_t set15Min(uint8_t a) {
     if (a >= 0 && a <= 59) {
-        return ((a / 15) + 1) * 15 % 60;
+        // return ((a / 15) + 1) * 15 % 60;
+        return ((a / 5) + 1) * 5 % 60;
     }
     return 0;
 }
@@ -617,11 +619,11 @@ void SyncRtc() {
     if (timeClient.isTimeSet()) {
         rtc.adjust(DateTime(timeClient.getEpochTime()));
 #ifdef _DEBUG_
-        Serial.println("\nSetup time from NTP server succeeded.");
+        Serial.println(F("\nSetup time from NTP server succeeded."));
 #endif
     } else {
 #ifdef _DEBUG_
-        Serial.println("\nSetup time from NTP server failed.");
+        Serial.println(F("\nSetup time from NTP server failed."));
 #endif
     }
 #endif
@@ -634,7 +636,7 @@ void SyncRtc() {
 void SetupAlarm() {
     if (!rtc.begin()) {
 #ifdef _DEBUG_
-        Serial.println("Couldn't find RTC!");
+        Serial.println(F("Couldn't find RTC!"));
 #endif
         // Serial.flush();
         // while (1) delay(10);
@@ -659,7 +661,7 @@ void SetupAlarm() {
 #ifdef _20SecTest
     // Set alarm time
     rtc.setAlarm1(rtc.now() + TimeSpan(0, 0, 0, 20), DS3231_A1_Second);  // Test
-    Serial.print("Trigger next time: ");
+    Serial.print(F("Trigger next time: "));
     Serial.println(String(roundSec(rtc.now().second() + 20)) + "th sec.");
 
 #else
@@ -684,14 +686,17 @@ void SetupAlarm() {
 #endif
 
 #ifdef _DEBUG_
-    Serial.println("\tThe alarm setting is done.");
+    Serial.println(F("\tThe alarm setting is done."));
 #endif
 }
 
 void IRAM_ATTR onRtcTrigger() { rtcTrigger = true; }
 
 // 15 minute match 0, 15, 30, and 45
-bool t15MinMatch(int tMin) { return tMin >= 0 && tMin % 15 == 0 && tMin < 60; }
+bool t15MinMatch(int tMin) {
+    // return tMin >= 0 && tMin % 15 == 0 && tMin < 60;
+    return tMin >= 0 && tMin % 5 == 0 && tMin < 60;
+}
 
 //----------------- Collect Data --------------//
 
@@ -704,7 +709,7 @@ void ReadScd41() {
     if (scd41Error != NO_ERROR) {
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         // #ifdef _DEBUG_
-        Serial.print("Error trying to execute getDataReadyStatus(): ");
+        Serial.print(F("Error trying to execute getDataReadyStatus(): "));
         Serial.println(scd41ErrorMessage);
         // #endif
         return;
@@ -716,7 +721,7 @@ void ReadScd41() {
         if (scd41Error != NO_ERROR) {
             errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
             // #ifdef _DEBUG_
-            Serial.print("Error trying to execute getDataReadyStatus(): ");
+            Serial.print(F("Error trying to execute getDataReadyStatus(): "));
             Serial.println(scd41ErrorMessage);
             // #endif
             return;
@@ -733,7 +738,7 @@ void ReadScd41() {
     if (scd41Error != NO_ERROR) {
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         // #ifdef _DEBUG_
-        Serial.print("Error trying to execute readMeasurement(): ");
+        Serial.print(F("Error trying to execute readMeasurement(): "));
         Serial.println(scd41ErrorMessage);
         // #endif
         return;
@@ -746,7 +751,7 @@ void ReadScd41() {
     // Wake the sensor up from sleep mode.
     scd41Error = scd41.wakeUp();
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute wakeUp(): ");
+        Serial.print(F("Error trying to execute wakeUp(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
@@ -756,7 +761,7 @@ void ReadScd41() {
     //
     scd41Error = scd41.measureSingleShot();
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute measureSingleShot(): ");
+        Serial.print(F("Error trying to execute measureSingleShot(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
@@ -770,7 +775,7 @@ void ReadScd41() {
 
 #ifdef _DEBUG_
     if (scd41Error != NO_ERROR) {
-        Serial.print("Error trying to execute measureAndReadSingleShot(): ");
+        Serial.print(F("Error trying to execute measureAndReadSingleShot(): "));
         errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
         Serial.println(scd41ErrorMessage);
         return;
@@ -800,9 +805,9 @@ void ReadSht40Sgp41() {
     if (sgp41Error) {
         errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
-        Serial.print("SHT4x - Error trying to execute measureHighPrecision(): ");
+        Serial.print(F("SHT4x - Error trying to execute measureHighPrecision(): "));
         Serial.println(sgp41ErrorMessage);
-        Serial.println("Fallback to use default values for humidity and temperature compensation for SGP41");
+        Serial.println(F("Fallback to use default values for humidity and temperature compensation for SGP41"));
 #endif
         compensationRh = defaultCompenstaionRh;
         compensationT  = defaultCompenstaionT;
@@ -831,7 +836,7 @@ void ReadSht40Sgp41() {
     if (sgp41Error) {
         errorToString(sgp41Error, sgp41ErrorMessage, 256);
 #ifdef _DEBUG_
-        Serial.print("SGP41 - Error trying to execute measureRawSignals(): ");
+        Serial.print(F("SGP41 - Error trying to execute measureRawSignals(): "));
         Serial.println(sgp41ErrorMessage);
 #endif
     } else {
@@ -843,7 +848,7 @@ void ReadSht40Sgp41() {
 void Sgp41HeatingOn() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOn.counter() == 1) {
-        Serial.println("Sgp41HeatingOn: First Time");
+        Serial.println(F("Sgp41HeatingOn: First Time"));
     }
 #endif
 
@@ -858,7 +863,7 @@ void Sgp41HeatingOn() {
 void Sgp41HeatingOff() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOff.counter() == 1) {
-        Serial.println("Sgp41HeatingOff: First Time");
+        Serial.println(F("Sgp41HeatingOff: First Time"));
     }
 #endif
 
@@ -955,145 +960,9 @@ void SendData() {
     mqtt.publish(MQTT_PUB_tempDht22, String(tempDht22).c_str());
     mqtt.publish(MQTT_PUB_humiDht22, String(humiDht22).c_str());
 
-    // ArduinoJson Assistant: https://arduinojson.org/v7/assistant/#/step1
-
-    // [
-    //     {
-    //        "measurement":"aht21",
-    //        "fields":{
-    //           "temp":5.5,
-    //           "humi":678
-    //        }
-    //     },
-    //     {
-    //        "measurement":"bme680",
-    //        "fields":{
-    //           "temp":5.5,
-    //           "humi":678,
-    //           "press":51,
-    //           "gasRes":51
-    //        }
-    //     },
-    //     {
-    //        "measurement":"dht22",
-    //        "fields":{
-    //           "temp":999,
-    //           "humi":19.5
-    //        }
-    //     },
-    //     {
-    //        "measurement":"ens160",
-    //        "fields":{
-    //           "aqi":999,
-    //           "tVoc":19.5,
-    //           "eCo2":1235
-    //        }
-    //     },
-    //     {
-    //        "measurement":"mhz19b",
-    //        "fields":{
-    //           "co2":999
-    //        }
-    //     },
-    //     {
-    //        "measurement":"pmsa003a",
-    //        "fields":{
-    //           "pm010":999,
-    //           "pm025":999,
-    //           "pm100":999
-    //        }
-    //     },
-    //     {
-    //        "measurement":"sgp41",
-    //        "fields":{
-    //           "vocIdx":100,
-    //           "noxIdx":1
-    //        }
-    //     },
-    //     {
-    //        "measurement":"sht40",
-    //        "fields":{
-    //           "temp":25.3,
-    //           "humi":30.2
-    //        }
-    //     },
-    //     {
-    //        "measurement":"veml7700",
-    //        "fields":{
-    //           "lux":999
-    //        }
-    //     }
-    //  ]
-
-    // JsonDocument doc;
-
-    // doc.clear();
-
-    // JsonObject doc_0         = doc.add<JsonObject>();
-    // doc_0["measurement"]     = "aht21";
-    // JsonObject root_0_fields = doc_0["fields"].to<JsonObject>();
-    // root_0_fields["temp"]    = tempDht22;
-    // root_0_fields["humi"]    = humiDht22;
-
-    // JsonObject doc_1         = doc.add<JsonObject>();
-    // doc_1["measurement"]     = "bme680";
-    // JsonObject root_1_fields = doc_1["fields"].to<JsonObject>();
-    // root_1_fields["temp"]    = tempBme680;
-    // root_1_fields["humi"]    = humiBme680;
-    // root_1_fields["press"]   = pressBme680;
-    // root_1_fields["gasRes"]  = gasResBme680;
-
-    // JsonObject doc_2         = doc.add<JsonObject>();
-    // doc_2["measurement"]     = "dht22";
-    // JsonObject root_2_fields = doc_2["fields"].to<JsonObject>();
-    // root_2_fields["temp"]    = tempDht22;
-    // root_2_fields["humi"]    = humiDht22;
-
-    // JsonObject doc_3         = doc.add<JsonObject>();
-    // doc_3["measurement"]     = "ens160";
-    // JsonObject root_3_fields = doc_3["fields"].to<JsonObject>();
-    // root_3_fields["aqi"]     = aqiEns160;
-    // root_3_fields["tVoc"]    = tvocEns160;
-    // root_3_fields["eCo2"]    = eco2Ens160;
-
-    // JsonObject doc_4       = doc.add<JsonObject>();
-    // doc_4["measurement"]   = "mhz19b";
-    // doc_4["fields"]["co2"] = co2;
-
-    // JsonObject doc_5         = doc.add<JsonObject>();
-    // doc_5["measurement"]     = "pmsa003a";
-    // JsonObject root_5_fields = doc_5["fields"].to<JsonObject>();
-    // root_5_fields["pm010"]   = pm_01;
-    // root_5_fields["pm025"]   = pm_25;
-    // root_5_fields["pm100"]   = pm_10;
-
-    // JsonObject doc_6         = doc.add<JsonObject>();
-    // doc_6["measurement"]     = "sgp41";
-    // JsonObject root_6_fields = doc_6["fields"].to<JsonObject>();
-    // root_6_fields["vocIdx"]  = vocIdxSgp41;
-    // root_6_fields["noxIdx"]  = noxIdxSgp41;
-
-    // JsonObject doc_7         = doc.add<JsonObject>();
-    // doc_7["measurement"]     = "sht40";
-    // JsonObject root_7_fields = doc_7["fields"].to<JsonObject>();
-    // root_7_fields["temp"]    = tempSht40;
-    // root_7_fields["humi"]    = humiSht40;
-
-    // JsonObject doc_8       = doc.add<JsonObject>();
-    // doc_8["measurement"]   = "veml7700";
-    // doc_8["fields"]["lux"] = lux;
-
-    // doc.shrinkToFit();  // optional
-
-    // char jsonBuffer[1024];
-
-    // serializeJson(doc, jsonBuffer);
-
-    // mqtt.publish(MQTT_PUB_JSON, jsonBuffer);
-
 #ifdef _DEBUG_
     // Serial.println("JSON: " + String(jsonBuffer));
-    Serial.println("\nData sending is done.");
+    Serial.println(F("\nData sending is done."));
 #endif
 }
 
@@ -1107,18 +976,18 @@ void IRAM_ATTR fetchData() {
 #else
 
 #ifdef _DEBUG_
-    Serial.print("15min Match: ");
+    Serial.print(F("15min Match: "));
     Serial.println(t15MinMatch(tMin) ? "true" : "false");
 #endif
     if (t15MinMatch(tMin)) {
         ReadData();
         SendData();
 #ifdef _DEBUG_
-        Serial.println("\tdata reading is done.");
+        Serial.println(F("\tdata reading is done."));
 #endif
     } else {
 #ifdef _DEBUG_
-        Serial.println("\tread data next time.");
+        Serial.println(F("\tread data next time."));
 #endif
     }
 
@@ -1137,12 +1006,12 @@ void wifiDisconnectedDetect() {
 void reconnectMqtt() {
     if (WiFi.status() == WL_CONNECTED) {
 #ifdef _DEBUG_
-        Serial.print("Connecting MQTT... ");
+        Serial.print(F("Connecting MQTT... "));
 #endif
         if (mqtt.connect(deviceName, mqtt_user, mqtt_pass)) {
             tReconnectMqtt.stop();
 #ifdef _DEBUG_
-            Serial.println("connected");
+            Serial.println(F("connected"));
 #endif
             tConnectMqtt.interval(0);
             tConnectMqtt.start();
@@ -1162,7 +1031,7 @@ void reconnectMqtt() {
     } else {
         if (tReconnectMqtt.counter() <= 1) {
 #ifdef _DEBUG_
-            Serial.println("WiFi is not connected");
+            Serial.println(F("WiFi is not connected"));
 #endif
         }
     }
