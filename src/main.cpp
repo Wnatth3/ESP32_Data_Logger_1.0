@@ -42,9 +42,14 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-#define _DEBUG_  // Uncomment this line if you want to debug
+// #define _DEBUG_  // Uncomment this line if you want to debug
 // #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
+
+// Correct sensor data time every 5, 10, or 15 minutes
+#define _5Min  // Uncomment this line if you want correct data every 5min
+// #define _10Min  // Uncomment this line if you want correct data every 10min
+// #define _15Min  // Uncomment this line if you want correct data every 15min
 
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
@@ -188,7 +193,7 @@ PubSubClient mqtt(mqttClient);
 
 //----------------- Time Setup ----------------//
 // Sync Time with NTP Server
-#ifdef syncRtcWithNtp
+// #ifdef syncRtcWithNtp
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 WiFiUDP ntpUDP;
@@ -196,7 +201,7 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "time.google.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.facebook.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.apple.com", 25200 /*GMT +7*/);
-#endif
+// #endif
 
 //----------------- DS3231  Real Time Clock --//
 #define SQW_PIN 33  // pin 33 for external Wake Up (ext1)
@@ -601,10 +606,17 @@ String strTime(DateTime t) {
 // uint8_t preheatTime(uint8_t setMin) { return setMin == 0 ? 57 : setMin -3;}
 
 // Set the time to 0, 15, 30, 45 min
-uint8_t set15Min(uint8_t a) {
+uint8_t setMinuteTimer(uint8_t a) {
     if (a >= 0 && a <= 59) {
-        // return ((a / 15) + 1) * 15 % 60;
+#ifdef _5Min
         return ((a / 5) + 1) * 5 % 60;
+#endif
+#ifdef _10Min
+        return ((a / 10) + 1) * 10 % 60;
+#endif
+#ifdef _15Min
+        return ((a / 15) + 1) * 15 % 60;
+#endif
     }
     return 0;
 }
@@ -612,7 +624,15 @@ uint8_t set15Min(uint8_t a) {
 uint8_t roundSec(uint8_t sec) { return sec > 60 ? sec - 60 : sec; }
 
 void SyncRtc() {
-#ifdef syncRtcWithNtp
+    if (!rtc.begin()) {
+#ifdef _DEBUG_
+        Serial.println(F("Couldn't find RTC!"));
+#endif
+        // Serial.flush();
+        // while (1) delay(10);
+    }
+
+    // #ifdef syncRtcWithNtp
     // Setup time with NTPClient library.
     timeClient.begin();
     timeClient.forceUpdate();
@@ -626,27 +646,23 @@ void SyncRtc() {
         Serial.println(F("\nSetup time from NTP server failed."));
 #endif
     }
-#endif
+    // #endif
 }
 
-// void SyncRtc2() {
-//     if (timeClient.getMinutes() != rtc.now().minute()) SyncRtc();
-// }
-
 void SetupAlarm() {
-    if (!rtc.begin()) {
-#ifdef _DEBUG_
-        Serial.println(F("Couldn't find RTC!"));
-#endif
-        // Serial.flush();
-        // while (1) delay(10);
-    }
+    //     if (!rtc.begin()) {
+    // #ifdef _DEBUG_
+    //         Serial.println(F("Couldn't find RTC!"));
+    // #endif
+    //         // Serial.flush();
+    //         // while (1) delay(10);
+    //     }
 
     if (rtc.lostPower()) {
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));  // this will adjust to the date and time at compilation
     }
 
-    SyncRtc();  // To ync RTC with NTP server. The internet connection is required.
+    // SyncRtc();  // To ync RTC with NTP server. The internet connection is required.
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2023, 12, 9, 21, 59, 35));  // Manually set time
 #ifdef _DEBUG_
@@ -670,8 +686,8 @@ void SetupAlarm() {
 #ifdef _DEBUG_
     Serial.println("tMin: " + String(tMin));
 #endif
-    // uint8_t setMin = set15Min(tMin);
-    setMin      = set15Min(tMin);
+    // uint8_t setMin = setMinuteTimer(tMin);
+    setMin      = setMinuteTimer(tMin);
     preheatTime = setMin == 0 ? 58 : setMin - 2;
     rtc.setAlarm1(DateTime(2023, 2, 18, 0, setMin, 0), DS3231_A1_Minute);
     // rtc.setAlarm1(DateTime(2023, 2, 18, 0, 0, 0), DS3231_A1_Minute);
@@ -693,9 +709,16 @@ void SetupAlarm() {
 void IRAM_ATTR onRtcTrigger() { rtcTrigger = true; }
 
 // 15 minute match 0, 15, 30, and 45
-bool t15MinMatch(int tMin) {
-    // return tMin >= 0 && tMin % 15 == 0 && tMin < 60;
+bool checkMinuteMatch(int tMin) {
+#ifdef _5Min
     return tMin >= 0 && tMin % 5 == 0 && tMin < 60;
+#endif
+#ifdef _10Min
+    return tMin >= 0 && tMin % 10 == 0 && tMin < 60;
+#endif
+#ifdef _15Min
+    return tMin >= 0 && tMin % 15 == 0 && tMin < 60;
+#endif
 }
 
 //----------------- Collect Data --------------//
@@ -977,9 +1000,9 @@ void IRAM_ATTR fetchData() {
 
 #ifdef _DEBUG_
     Serial.print(F("15min Match: "));
-    Serial.println(t15MinMatch(tMin) ? "true" : "false");
+    Serial.println(checkMinuteMatch(tMin) ? "true" : "false");
 #endif
-    if (t15MinMatch(tMin)) {
+    if (checkMinuteMatch(tMin)) {
         ReadData();
         SendData();
 #ifdef _DEBUG_
@@ -1076,12 +1099,11 @@ void setup() {
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
-                                                       // PMSA003
+
+    // PMSA003
     pms.init();
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
-    float temperatureOffset = 0.0;
-    scd41.getTemperatureOffset(temperatureOffset);
 #ifdef _20SecTest
     scd41.startPeriodicMeasurement();
 #endif
@@ -1101,6 +1123,7 @@ void setup() {
     wifiManagerSetup();
     OtaWebUpdateSetup();
 
+    SyncRtc();
     SetupAlarm();
 
     // mqtt.setBufferSize(1024); // Max buffer size = 1024 bytes
