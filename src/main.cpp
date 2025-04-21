@@ -603,8 +603,6 @@ String strTime(DateTime t) {
     return t.toString(buff);
 }
 
-// uint8_t preheatTime(uint8_t setMin) { return setMin == 0 ? 57 : setMin -3;}
-
 // Set the time to 0, 15, 30, 45 min
 uint8_t setMinuteTimer(uint8_t a) {
     if (a >= 0 && a <= 59) {
@@ -686,7 +684,6 @@ void SetupAlarm() {
 #ifdef _DEBUG_
     Serial.println("tMin: " + String(tMin));
 #endif
-    // uint8_t setMin = setMinuteTimer(tMin);
     setMin      = setMinuteTimer(tMin);
     preheatTime = setMin == 0 ? 58 : setMin - 2;
     rtc.setAlarm1(DateTime(2023, 2, 18, 0, setMin, 0), DS3231_A1_Minute);
@@ -724,89 +721,92 @@ bool checkMinuteMatch(int tMin) {
 //----------------- Collect Data --------------//
 
 void ReadScd41() {
-#ifdef _20SecTest
-
-#ifdef _DEBUG_
-    bool dataReady = false;
-    scd41Error     = scd41.getDataReadyStatus(dataReady);
-    if (scd41Error != NO_ERROR) {
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        // #ifdef _DEBUG_
-        Serial.print(F("Error trying to execute getDataReadyStatus(): "));
-        Serial.println(scd41ErrorMessage);
-        // #endif
-        return;
-    }
-
-    while (!dataReady) {
-        delay(100);
+    #ifdef _20SecTest
+        bool dataReady = false;
+    
+    #ifdef _DEBUG_
         scd41Error = scd41.getDataReadyStatus(dataReady);
         if (scd41Error != NO_ERROR) {
-            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-            // #ifdef _DEBUG_
             Serial.print(F("Error trying to execute getDataReadyStatus(): "));
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
             Serial.println(scd41ErrorMessage);
-            // #endif
             return;
         }
+        while (!dataReady) {
+            delay(100);
+            scd41Error = scd41.getDataReadyStatus(dataReady);
+            if (scd41Error != NO_ERROR) {
+                Serial.print(F("Error trying to execute getDataReadyStatus(): "));
+                errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+                Serial.println(scd41ErrorMessage);
+                return;
+            }
+        }
+        //
+        // If ambient pressure compenstation during measurement
+        // is required, you should call the respective functions here.
+        // Check out the header file for the function definition.
+        scd41Error = scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
+        if (scd41Error != NO_ERROR) {
+            Serial.print(F("Error trying to execute readMeasurement(): "));
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+            Serial.println(scd41ErrorMessage);
+            return;
+        }
+    
+    #else
+    
+        scd41.getDataReadyStatus(dataReady);
+        while (!dataReady) {
+            delay(100);
+        }
+        // If ambient pressure compenstation during measurement
+        // is required, you should call the respective functions here.
+        // Check out the header file for the function definition.
+        scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
+    #endif
+    
+    #else
+    
+    // Single Shot Mode
+    #ifdef _DEBUG_
+        // Wake the sensor up from sleep mode.
+        scd41Error = scd41.wakeUp();
+        if (scd41Error != NO_ERROR) {
+            Serial.print(F("Error trying to execute wakeUp(): "));
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+            Serial.println(scd41ErrorMessage);
+            return;
+        }
+        // Ignore first measurement after wake up.
+        scd41Error = scd41.measureSingleShot();
+        if (scd41Error != NO_ERROR) {
+            Serial.print(F("Error trying to execute measureSingleShot(): "));
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+            Serial.println(scd41ErrorMessage);
+            return;
+        }
+        // Perform single shot measurement and read data.
+        scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41,
+                                                    humiScd41);
+        if (scd41Error != NO_ERROR) {
+            Serial.print(F("Error trying to execute measureAndReadSingleShot(): "));
+            errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
+            Serial.println(scd41ErrorMessage);
+            return;
+        }
+    
+    #else
+        // Wake the sensor up from sleep mode.
+        scd41.wakeUp();
+        // Ignore first measurement after wake up.
+        // scd41.measureSingleShot(); // The Night Bug
+        // Perform single shot measurement and read data.
+        scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
+    #endif
+    
+    #endif
     }
-#endif
-
-    // If ambient pressure compenstation during measurement
-    // is required, you should call the respective functions here.
-    // Check out the header file for the function definition.
-    scd41Error = scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
-
-#ifdef _DEBUG_
-    if (scd41Error != NO_ERROR) {
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        // #ifdef _DEBUG_
-        Serial.print(F("Error trying to execute readMeasurement(): "));
-        Serial.println(scd41ErrorMessage);
-        // #endif
-        return;
-    }
-#endif
-
-#else
-
-#ifdef _DEBUG_
-    // Wake the sensor up from sleep mode.
-    scd41Error = scd41.wakeUp();
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute wakeUp(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-    //
-    // Ignore first measurement after wake up.
-    //
-    scd41Error = scd41.measureSingleShot();
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute measureSingleShot(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-
-#endif
-    //
-    // Perform single shot measurement and read data.
-    //
-    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
-
-#ifdef _DEBUG_
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute measureAndReadSingleShot(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-#endif
-
-#endif
-}
 
 void ReadSht40Sgp41() {
     humiSht40                      = 0;  // %RH
@@ -945,7 +945,7 @@ void ReadData() {
     humiDht22 = dht.readHumidity();
 
 #ifdef _DEBUG_
-    Serial.printf("AHT21: Temp: %.2f C | Humi: %.2f %%\n", tempAht21, humiAht21);
+    Serial.printf("\nAHT21: Temp: %.2f C | Humi: %.2f %%\n", tempAht21, humiAht21);
     Serial.printf("BME680: Temp: %.2f C | Humi: %.2f %% | Gas Resist: %.2f kohm\n", tempBme680, humiBme680, gasResBme680);
     Serial.printf("DHT22: Temp: %.2f C | Humi: %.2f %%\n", tempDht22, humiDht22);
     Serial.printf("ENS160: AQI: %u | TVOC: %u ppb | eCO2: %u ppm\n", aqiEns160, tvocEns160, eco2Ens160);
@@ -955,6 +955,10 @@ void ReadData() {
     Serial.printf("SGP41: VOC Idx: %d | NOx Idx: %d\n", vocIdxSgp41, noxIdxSgp41);
     Serial.printf("SHT40: Temp: %.2f C | Humi: %.2f %%\n", tempSht40, humiSht40);
     Serial.printf("VEML7700: Lux: %.2f\n", lux);
+#endif
+
+#ifdef _DEBUG_
+    Serial.println(F("\nData reading is done."));
 #endif
 }
 
@@ -985,7 +989,7 @@ void SendData() {
 
 #ifdef _DEBUG_
     // Serial.println("JSON: " + String(jsonBuffer));
-    Serial.println(F("\nData sending is done."));
+    Serial.println(F("Data sending is done."));
 #endif
 }
 
@@ -999,18 +1003,16 @@ void IRAM_ATTR fetchData() {
 #else
 
 #ifdef _DEBUG_
-    Serial.print(F("15min Match: "));
-    Serial.println(checkMinuteMatch(tMin) ? "true" : "false");
+    Serial.print(F("Minute Timer Match: "));
+    Serial.println(checkMinuteMatch(tMin) ? "true, Reading data" : "false");
 #endif
     if (checkMinuteMatch(tMin)) {
         ReadData();
         SendData();
-#ifdef _DEBUG_
-        Serial.println(F("\tdata reading is done."));
-#endif
+
     } else {
 #ifdef _DEBUG_
-        Serial.println(F("\tread data next time."));
+        Serial.println(F("\tRead data next time."));
 #endif
     }
 
@@ -1104,6 +1106,45 @@ void setup() {
     pms.init();
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
+
+    scd41.wakeUp();
+    scd41.stopPeriodicMeasurement();
+    scd41.reinit();
+    //     // uint64_t serialNumber = 0;
+    //     // scd41.getSerialNumber(serialNumber);
+
+    // #ifdef _DEBUG_
+    // float    tempOffset;
+    // uint16_t tempOffsetRaw, sensorAltitude;
+    // scd41.getTemperatureOffset(tempOffset);
+    // Serial.print(F("TempOffset: "));
+    // Serial.println(tempOffset, 2);
+    // scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    // Serial.print(F("TempOffsetRaw: "));
+    // Serial.print(175 * tempOffsetRaw / 65535);
+    // Serial.println(" C");
+    // scd41.getSensorAltitude(sensorAltitude);
+    // Serial.print(F("Sensor Altitude: "));
+    // Serial.print(sensorAltitude);
+    // Serial.println(" m");
+    // #endif
+    //     scd41.setTemperatureOffset(2.9f);  // Set temperature offset to 4.0 degree Celsius
+    //     scd41.setSensorAltitude(310);      // Set altitude to 0m (default)
+    //     scd41.persistSettings();           // Save settings to EEPROM
+    // #ifdef _DEBUG_
+    // scd41.getTemperatureOffset(tempOffset);
+    // Serial.print(F("After_tempOffset: "));
+    // Serial.println(tempOffset, 2);
+    // scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    // Serial.print(F("After_TempOffsetRaw: "));
+    // Serial.print(175 * tempOffsetRaw / 65535);
+    // Serial.println(" C");
+    // scd41.getSensorAltitude(sensorAltitude);
+    // Serial.print(F("After_Sensor Altitude: "));
+    // Serial.print(sensorAltitude);
+    // Serial.println(" m");
+    // #endif
+
 #ifdef _20SecTest
     scd41.startPeriodicMeasurement();
 #endif
