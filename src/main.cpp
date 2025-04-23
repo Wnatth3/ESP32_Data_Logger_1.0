@@ -16,6 +16,9 @@ Log:
 #include <Update.h>
 #include <WebServer.h>
 #include <WiFiClient.h>
+// NTP
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 //
 #include <RTClib.h>
 #include <SoftwareSerial.h>
@@ -38,11 +41,10 @@ Log:
 #include <EasyButton.h>
 
 //******************************** Configulation ****************************//
-#define _DEBUG_  // Uncomment this line if you want to debug
-// #define syncRtcWithNtp  // Uncomment this line if you want to sync RTC with NTP
+// #define _DEBUG_  // Uncomment this line if you want to debug
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
 
-// ----- Read Sensores every 5, 10, 15 minutes ----- //
+// -- Read Sensores every 5, 10, or 15 minutes -- //
 #define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
 // #define _10Min  // Uncomment this line if you want to read sensors every 10 minutes
 // #define _15Min  // Uncomment this line if you want to read sensors every 15 minutes
@@ -166,15 +168,11 @@ PubSubClient mqtt(mqttClient);
 
 //----------------- Time Setup ----------------//
 // Sync Time with NTP Server
-// #ifdef syncRtcWithNtp
-#include <NTPClient.h>
-#include <WiFiUdp.h>
 WiFiUDP ntpUDP;
 // NTPClient timeClient(ntpUDP, "NTP Server Name", offset time(ms), update Interval(ms));
 NTPClient timeClient(ntpUDP, "time.google.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.facebook.com", 25200 /*GMT +7*/);
 // NTPClient timeClient(ntpUDP, "time.apple.com", 25200 /*GMT +7*/);
-// #endif
 
 //----------------- DS3231  Real Time Clock --//
 #define SQW_PIN 33  // pin 33 for external Wake Up (ext1)
@@ -608,7 +606,6 @@ void SyncRtc() {
         // Serial.flush();
         // while (1) delay(10);
     }
-    // #ifdef syncRtcWithNtp
     // Setup time with NTPClient library.
     timeClient.begin();
     timeClient.forceUpdate();
@@ -622,7 +619,6 @@ void SyncRtc() {
         Serial.println(F("\nSetup time from NTP server failed."));
 #endif
     }
-    // #endif
 }
 
 void SetupAlarm() {
@@ -700,7 +696,6 @@ bool checkMinMatch(int tMin) {
 //----------------- Collect Data --------------//
 
 void ReadScd41() {
-#ifdef _20SecTest
     bool dataReady = false;
 
 #ifdef _DEBUG_
@@ -743,47 +738,6 @@ void ReadScd41() {
     // is required, you should call the respective functions here.
     // Check out the header file for the function definition.
     scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
-#endif
-
-#else
-
-// Single Shot Mode
-#ifdef _DEBUG_
-    // Wake the sensor up from sleep mode.
-    scd41Error = scd41.wakeUp();
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute wakeUp(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-    // Ignore first measurement after wake up.
-    scd41Error = scd41.measureSingleShot();
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute measureSingleShot(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-    // Perform single shot measurement and read data.
-    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41,
-                                                humiScd41);
-    if (scd41Error != NO_ERROR) {
-        Serial.print(F("Error trying to execute measureAndReadSingleShot(): "));
-        errorToString(scd41Error, scd41ErrorMessage, sizeof scd41ErrorMessage);
-        Serial.println(scd41ErrorMessage);
-        return;
-    }
-
-#else
-    // Wake the sensor up from sleep mode.
-    scd41.wakeUp();
-    // Ignore first measurement after wake up.
-    scd41.measureSingleShot();
-    // Perform single shot measurement and read data.
-    scd41Error = scd41.measureAndReadSingleShot(co2Scd41, tempScd41, humiScd41);
-#endif
-
 #endif
 }
 
@@ -1169,6 +1123,29 @@ void CheckSensor(bool condition, String sensorName) {
     }
 }
 
+void PrintScd41Config(String prefix) {
+#ifdef _DEBUG_
+    float    tempOffset = 0.0f;
+    uint16_t tempOffsetRaw = 0, altitude = 0;
+
+    Serial.print(prefix);
+    scd41.getTemperatureOffset(tempOffset);
+    Serial.print(F(" tempOffset: "));
+    Serial.print(tempOffset, 2);
+    Serial.print(F(" C"));
+    scd41.getTemperatureOffsetRaw(tempOffsetRaw);
+    Serial.print(F(" | "));
+    Serial.print(F(" TempOffsetRaw: "));
+    Serial.print(175 * tempOffsetRaw / 65535);
+    Serial.print(F(" C"));
+    scd41.getSensorAltitude(altitude);
+    Serial.print(F(" | "));
+    Serial.print(F(" Altitude: "));
+    Serial.print(altitude);
+    Serial.println(F(" m"));
+#endif
+}
+
 //******************************** Setup  ***********************************//
 void setup() {
     Serial.begin(115200);
@@ -1190,41 +1167,22 @@ void setup() {
 
     // PMSA003
     pms.init();
+
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
     scd41.wakeUp();
     scd41.stopPeriodicMeasurement();
-    scd41.reinit();
+    scd41.reinit();  // Reload the configuration from EEPROM
     // uint64_t serialNumber = 0;
     // scd41.getSerialNumber(serialNumber);
 
-    // float tempOffset = 4.0;
-    float    tempOffset;
-    uint16_t tempOffsetRaw;
-#ifdef _DEBUG_
-    scd41.getTemperatureOffset(tempOffset);
-    Serial.print(F("TempOffset: "));
-    Serial.println(tempOffset, 2);
-    scd41.getTemperatureOffsetRaw(tempOffsetRaw);
-    Serial.print(F("TempOffsetRaw: "));
-    Serial.print(175 * tempOffsetRaw / 65535);
-    Serial.println(" C");
-#endif
-    scd41.setTemperatureOffset(2.9f);  // Set temperature offset to 4.0 degree Celsius
+    PrintScd41Config("");
+    scd41.setTemperatureOffset(3.5f);  // Default: 4 C, Sweet spot: 3.5 C
     scd41.setSensorAltitude(310);      // Set altitude to 0m (default)
     scd41.persistSettings();           // Save settings to EEPROM
-#ifdef _DEBUG_
-    scd41.getTemperatureOffset(tempOffset);
-    Serial.print(F("After_tempOffset: "));
-    Serial.println(tempOffset, 2);
-    scd41.getTemperatureOffsetRaw(tempOffsetRaw);
-    Serial.print(F("After_TempOffsetRaw: "));
-    Serial.print(175 * tempOffsetRaw / 65535);
-    Serial.println(" C");
-#endif
-#ifdef _20SecTest
+    PrintScd41Config("After");
     scd41.startPeriodicMeasurement();
-#endif
+
     // SHT40
     sht40.begin(Wire, SHT40_I2C_ADDR_44);
     // SGP41
