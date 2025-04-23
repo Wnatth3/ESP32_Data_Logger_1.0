@@ -283,10 +283,10 @@ float humiDht22;
 DHT dht(DHTPIN, DHTTYPE);
 
 //******************************** Tasks ************************************//
-void    Sgp41HeatingOn();
-void    Sgp41HeatingOff();
-TickTwo tSgp41HeatingOn(Sgp41HeatingOn, 500, 0, MILLIS);  // (function, interval, iteration, interval unit)
-TickTwo tSgp41HeatingOff(Sgp41HeatingOff, 0, 0, MILLIS);  // (function, interval, iteration, interval unit)
+void    sgp41HeatingOn();
+void    sgp41HeatingOff();
+TickTwo tSgp41HeatingOn(sgp41HeatingOn, 500, 0, MILLIS);  // (function, interval, iteration, interval unit)
+TickTwo tSgp41HeatingOff(sgp41HeatingOff, 0, 0, MILLIS);  // (function, interval, iteration, interval unit)
 
 void    wifiDisconnectedDetect();
 TickTwo tWifiDisconnectedDetect(wifiDisconnectedDetect, 300000, 0, MILLIS);  // Every 5 minutes
@@ -504,7 +504,7 @@ void resetWifiBtPressed() {
 }
 
 //----------------- OTA Web Updater -----------//
-void OtaWebUpdateSetup() {
+void otaWebUpdateSetup() {
     // const char* host = "ESP32";
     /*use mdns for host name resolution*/
     if (!MDNS.begin(deviceName)) {  // http://deviceName.local
@@ -598,7 +598,7 @@ uint8_t setMinMatch(uint8_t a) {
 
 uint8_t roundSec(uint8_t sec) { return sec > 60 ? sec - 60 : sec; }
 
-void SyncRtc() {
+void syncRtc() {
     if (!rtc.begin()) {
 #ifdef _DEBUG_
         Serial.println(F("Couldn't find RTC!"));
@@ -621,7 +621,7 @@ void SyncRtc() {
     }
 }
 
-void SetupAlarm() {
+void setupAlarm() {
     //     if (!rtc.begin()) {
     // #ifdef _DEBUG_
     //         Serial.println("Couldn't find RTC!");
@@ -634,7 +634,7 @@ void SetupAlarm() {
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));  // this will adjust to the date and time at compilation
     }
 
-// SyncRtc();  // Sync RTC with NTP server. The internet connection is required.
+// syncRtc();  // Sync RTC with NTP server. The internet connection is required.
 // January 21, 2014 at 3am you would call:
 // rtc.adjust(DateTime(2023, 12, 9, 21, 59, 35));  // Manually set time
 #ifdef _DEBUG_
@@ -695,7 +695,7 @@ bool checkMinMatch(int tMin) {
 
 //----------------- Collect Data --------------//
 
-void ReadScd41() {
+void readScd41() {
     bool dataReady = false;
 
 #ifdef _DEBUG_
@@ -741,7 +741,7 @@ void ReadScd41() {
 #endif
 }
 
-void ReadSht40Sgp41() {
+void readSht40Sgp41() {
     humiSht40                      = 0;  // %RH
     tempSht40                      = 0;  // degreeC
     uint16_t srawVoc               = 0;
@@ -801,14 +801,14 @@ void ReadSht40Sgp41() {
     }
 }
 
-void Sgp41HeatingOn() {
+void sgp41HeatingOn() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOn.counter() == 1) {
-        Serial.println(F("Sgp41HeatingOn: First Time"));
+        Serial.println(F("sgp41HeatingOn: First Time"));
     }
 #endif
 
-    ReadSht40Sgp41();
+    readSht40Sgp41();
     uint8_t now = rtc.now().minute();
     if (now == setMin) {
         tSgp41HeatingOn.stop();
@@ -816,10 +816,10 @@ void Sgp41HeatingOn() {
     }
 }
 
-void Sgp41HeatingOff() {
+void sgp41HeatingOff() {
 #ifdef _DEBUG_
     if (tSgp41HeatingOff.counter() == 1) {
-        Serial.println(F("Sgp41HeatingOff: First Time"));
+        Serial.println(F("sgp41HeatingOff: First Time"));
     }
 #endif
 
@@ -830,7 +830,7 @@ void Sgp41HeatingOff() {
     }
 }
 
-void ReadEns160Aht21() {
+void readEns160Aht21() {
     // AHT21
     sensors_event_t humiEvent, tempEvent;
     aht21.getEvent(&humiEvent, &tempEvent);  // populate temp and humidity objects with fresh data
@@ -847,7 +847,7 @@ void ReadEns160Aht21() {
     eco2Ens160 = ens160.geteCO2();
 }
 
-void ReadData() {
+void readData() {
     if (iaqSensor.run()) {
         tempBme680   = iaqSensor.temperature;
         humiBme680   = iaqSensor.humidity;
@@ -869,9 +869,9 @@ void ReadData() {
         pm100 = pms.pm10;
     }
 
-    ReadScd41();
-    ReadSht40Sgp41();
-    ReadEns160Aht21();
+    readScd41();
+    readSht40Sgp41();
+    readEns160Aht21();
 
     // DHT22
     tempDht22 = dht.readTemperature();
@@ -943,7 +943,7 @@ void ReadData() {
 #endif
 }
 
-void SendData() {
+void sendData() {
     JsonDocument doc;
     doc.clear();
 
@@ -1021,11 +1021,11 @@ void SendData() {
 }
 
 void IRAM_ATTR fetchData() {
-    SetupAlarm();
+    setupAlarm();
 
 #ifdef _20SecTest
-    ReadData();
-    SendData();
+    readData();
+    sendData();
 
 #else
 
@@ -1044,8 +1044,8 @@ void IRAM_ATTR fetchData() {
 #endif
 
     if (checkMinMatch(tMin)) {
-        ReadData();
-        SendData();
+        readData();
+        sendData();
 #ifdef _DEBUG_
         Serial.println(F("\tdata reading is done."));
 #endif
@@ -1111,7 +1111,7 @@ void connectMqtt() {
     }
 }
 
-void CheckSensor(bool condition, String sensorName) {
+void checkSensor(bool condition, String sensorName) {
     if (condition) {
 #ifdef _DEBUG_
         Serial.println(sensorName + " : " + "Available");
@@ -1123,7 +1123,7 @@ void CheckSensor(bool condition, String sensorName) {
     }
 }
 
-void PrintScd41Config(String prefix) {
+void printScd41Config(String prefix) {
 #ifdef _DEBUG_
     float    tempOffset = 0.0f;
     uint16_t tempOffsetRaw = 0, altitude = 0;
@@ -1159,7 +1159,7 @@ void setup() {
     iaqSensor.begin(BME68X_I2C_ADDR_LOW, Wire);
     iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
     // VEML7700
-    CheckSensor(veml.begin(), "VEML7700");
+    checkSensor(veml.begin(), "VEML7700");
     // MH-Z19B
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
@@ -1176,11 +1176,11 @@ void setup() {
     // uint64_t serialNumber = 0;
     // scd41.getSerialNumber(serialNumber);
 
-    PrintScd41Config("");
+    printScd41Config("");
     scd41.setTemperatureOffset(3.5f);  // Default: 4 C, Sweet spot: 3.5 C
     scd41.setSensorAltitude(310);      // Set altitude to 0m (default)
     scd41.persistSettings();           // Save settings to EEPROM
-    PrintScd41Config("After");
+    printScd41Config("After");
     scd41.startPeriodicMeasurement();
 
     // SHT40
@@ -1188,18 +1188,18 @@ void setup() {
     // SGP41
     sgp41.begin(Wire);
     // AHT21
-    CheckSensor(aht21.begin(), "AHT21");
+    checkSensor(aht21.begin(), "AHT21");
     // ENS160
     ens160.begin();
-    CheckSensor(ens160.available(), "ENS160");
+    checkSensor(ens160.available(), "ENS160");
     ens160.setMode(ENS160_OPMODE_STD);
     // DHT22
     dht.begin();
 
     wifiManagerSetup();
-    OtaWebUpdateSetup();
-    SyncRtc();
-    SetupAlarm();
+    otaWebUpdateSetup();
+    syncRtc();
+    setupAlarm();
 
     mqtt.setBufferSize(1024);  // Max buffer size = 1024 bytes (default: 256 bytes)
     mqtt.setServer(mqtt_server, atoi(mqtt_port));
