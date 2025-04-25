@@ -540,7 +540,8 @@ void otaWebUpdateSetup() {
             HTTPUpload& upload = server.upload();
             if (upload.status == UPLOAD_FILE_START) {
 #ifdef _DEBUG_
-                Serial.printf("Update: %s\n", upload.filename.c_str());
+                Serial.print(F("Update: "));
+                Serial.println(upload.filename);
 #endif
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {  // start with max available size
                     Update.printError(Serial);
@@ -553,7 +554,9 @@ void otaWebUpdateSetup() {
             } else if (upload.status == UPLOAD_FILE_END) {
                 if (Update.end(true)) {  // true to set the size to the current progress
 #ifdef _DEBUG_
-                    Serial.printf("Update Success: %u\nRebooting...\n", upload.totalSize);
+                    Serial.println(F("Update Success: ")
+                    Serial.print(upload.totalSize);
+                    Serial.println(F(" Rebooting..."));
 #endif
                 } else {
                     Update.printError(Serial);
