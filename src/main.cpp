@@ -38,7 +38,7 @@ Log:
 #include <ScioSense_ENS160.h>      // ENS160 - ENS160 Adafruit Fork - https://github.com/adafruit/ENS160_driver
 #include <DHT.h>                   // DHT22 - DHT Sensor library
 #include <TickTwo.h>
-#include <EasyButton.h>
+#include <Button2.h>
 
 //******************************** Configulation ****************************//
 // #define _DEBUG_  // Uncomment this line if you want to debug
@@ -56,8 +56,10 @@ Log:
 ezLED statusLed(led);
 
 //----------------- Reset WiFi Button ---------//
-#define resetWifiPin 0
-EasyButton resetWifiBt(resetWifiPin);
+// #define resetWifiPin 0
+// EasyButton resetWifiBt(resetWifiPin);
+#define resetWifiBtPin 0
+Button2 resetWifiBt;
 
 //----------------- WiFi Manager --------------//
 
@@ -490,7 +492,7 @@ void wifiManagerSetup() {
 #endif
 }
 
-void resetWifiBtPressed() {
+void resetWifiBtPressed(Button2& btn) {
     statusLed.turnON();
 #ifdef _DEBUG_
     Serial.println(F("WiFi resetting started."));
@@ -501,6 +503,7 @@ void resetWifiBtPressed() {
     Serial.println(String(deviceName) + " is restarting.");
 #endif
     ESP.restart();
+    delay(3000);
 }
 
 //----------------- OTA Web Updater -----------//
@@ -554,7 +557,7 @@ void otaWebUpdateSetup() {
             } else if (upload.status == UPLOAD_FILE_END) {
                 if (Update.end(true)) {  // true to set the size to the current progress
 #ifdef _DEBUG_
-                    Serial.println(F("Update Success: ")
+                    Serial.println(F("Update Success: "));
                     Serial.print(upload.totalSize);
                     Serial.println(F(" Rebooting..."));
 #endif
@@ -1128,7 +1131,7 @@ void checkSensor(bool condition, String sensorName) {
 
 void printScd41Config(String prefix) {
 #ifdef _DEBUG_
-    float    tempOffset = 0.0f;
+    float    tempOffset    = 0.0f;
     uint16_t tempOffsetRaw = 0, altitude = 0;
 
     Serial.print(prefix);
@@ -1156,8 +1159,11 @@ void setup() {
     Wire.begin();
     pinMode(SQW_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(SQW_PIN), onRtcTrigger, FALLING);
-    resetWifiBt.begin();
-    resetWifiBt.onPressedFor(5000, resetWifiBtPressed);
+    resetWifiBt.begin(resetWifiBtPin);
+    resetWifiBt.setLongClickTime(5000);
+    resetWifiBt.setLongClickDetectedHandler(resetWifiBtPressed);
+
+
     // BME680
     iaqSensor.begin(BME68X_I2C_ADDR_LOW, Wire);
     iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
@@ -1218,7 +1224,7 @@ void setup() {
 void loop() {
     tWifiDisconnectedDetect.update();
     statusLed.loop();  // MUST call the led.loop() function in loop()
-    resetWifiBt.read();
+    resetWifiBt.loop();
     server.handleClient();  // OTA Web Update
     tConnectMqtt.update();
     tReconnectMqtt.update();
