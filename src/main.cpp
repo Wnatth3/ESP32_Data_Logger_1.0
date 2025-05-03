@@ -4,11 +4,11 @@ Log:
 */
 
 #include <Arduino.h>
-#include <FS.h>  //this needs to be first, or it all crashes and burns.../
-#include <SPIFFS.h>
+#include <LittleFS.h>
+#include <FS.h>           //this needs to be first, or it all crashes and burns.../
+#include <WiFiManager.h>  //https://github.com/tzapu/WiFiManager
 #include <ArduinoJson.h>  //https://github.com/bblanchon/ArduinoJson
 // WiFiManager
-#include <WiFiManager.h>  //https://github.com/tzapu/WiFiManager
 // PubSubClient
 #include <PubSubClient.h>
 // OTA
@@ -41,8 +41,10 @@ Log:
 #include <Button2.h>
 
 //******************************** Configulation ****************************//
-// #define _DEBUG_  // Uncomment this line if you want to debug
+#define _DEBUG_  // Uncomment this line if you want to debug
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
+
+#define FORMAT_LITTLEFS_IF_FAILED true
 
 // -- Read Sensores every 5, 10, or 15 minutes -- //
 #define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
@@ -50,6 +52,10 @@ Log:
 // #define _15Min  // Uncomment this line if you want to read sensors every 15 minutes
 //******************************** Global Variables *************************//
 #define deviceName "WeatherSt"
+
+const char* filename = "/config.txt";  // Config file name
+
+bool mqttParameter;
 
 //----------------- esLED ---------------------//
 #define led LED_BUILTIN
@@ -67,16 +73,22 @@ Button2 resetWifiBt;
 char static_ip[16]  = "192.168.0.191";
 char static_gw[16]  = "192.168.0.1";
 char static_sn[16]  = "255.255.255.0";
-char static_dns[16] = "8.8.8.8";
+char static_dns[16] = "1.1.1.1";
 // MQTT
-char mqtt_server[16] = "192.168.0.10";
-char mqtt_port[6]    = "1883";
-char mqtt_user[16];  // = "admin";
-char mqtt_pass[16];  // = "admin";
+char mqttBroker[16] = "192.168.0.10";
+char mqttPort[6]    = "1883";
+char mqttUser[16];  // = "admin";
+char mqttPass[16];  // = "admin";
 
 bool shouldSaveConfig = false;  // flag for saving data
 
 WiFiManager wifiManager;
+
+WiFiManagerParameter customMqttBroker("broker", "mqtt server", mqttBroker, 16);
+WiFiManagerParameter customMqttPort("port", "mqtt port", mqttPort, 6);
+WiFiManagerParameter customMqttUser("user", "mqtt user", mqttUser, 10);
+WiFiManagerParameter customMqttPass("pass", "mqtt pass", mqttPass, 10);
+
 //----------------- OTA Web Update ------------//
 /* Style */
 String style =
@@ -300,109 +312,115 @@ TickTwo tReconnectMqtt(reconnectMqtt, 3000, 0, MILLIS);
 
 //******************************** Functions ********************************//
 //----------------- WiFi Manager --------------//
-// callback notifying us of the need to save config
-void saveConfigCallback() {
+// Loads the configuration from a file
+void loadConfiguration(fs::FS& fs, const char* filename) {
+    // Open file for reading
+    File file = fs.open(filename, "r");
+    if (!file) {
 #ifdef _DEBUG_
-    Serial.println(F("Should save config"));
+        Serial.println(F("Failed to open data file"));
 #endif
+        return;
+    }
+
+    // Allocate a temporary JsonDocument
+    JsonDocument doc;
+    // Deserialize the JSON document
+    DeserializationError error = deserializeJson(doc, file);
+    if (error) {
+#ifdef _DEBUG_
+        Serial.println(F("Failed to read file, using default configuration"));
+#endif
+    }
+    // Copy values from the JsonDocument to the Config
+    // strlcpy(Destination_Variable, doc["Source_Variable"] /*| "Default_Value"*/, sizeof(Destination_Name));
+    strlcpy(mqttBroker, doc["mqttBroker"], sizeof(mqttBroker));
+    strlcpy(mqttPort, doc["mqttPort"], sizeof(mqttPort));
+    strlcpy(mqttUser, doc["mqttUser"], sizeof(mqttUser));
+    strlcpy(mqttPass, doc["mqttPass"], sizeof(mqttPass));
+    mqttParameter = doc["mqttParameter"];
+
+    if (doc["ip"]) {
+        strlcpy(static_ip, doc["ip"], sizeof(static_ip));
+        strlcpy(static_gw, doc["gateway"], sizeof(static_gw));
+        strlcpy(static_sn, doc["subnet"], sizeof(static_sn));
+        strlcpy(static_dns, doc["dns"], sizeof(static_dns));
+    } else {
+#ifdef _DEBUG_
+        Serial.println(F("No custom IP in config file"));
+#endif
+    }
+
+    file.close();
+}
+
+void mqttInit() {
+#ifdef _DEBUG_
+    Serial.print(F("MQTT parameters are "));
+#endif
+    if (mqttParameter) {
+#ifdef _DEBUG_
+        Serial.println(F(" available"));
+#endif
+        mqtt.setBufferSize(1024);  // Max buffer size = 1024 bytes (default: 256 bytes)
+        mqtt.setServer(mqttBroker, atoi(mqttPort));
+        tConnectMqtt.start();
+    } else {
+#ifdef _DEBUG_
+        Serial.println(F(" not available."));
+#endif
+    }
+}
+
+void saveConfigCallback() {
+    Serial.println("Should save config");
     shouldSaveConfig = true;
 }
 
-void wifiManagerSetup() {
-    // clean FS, for testing
-    // SPIFFS.format();
+void printFile(fs::FS& fs, const char* filename) {
+    // Open file for reading
+    File file = fs.open(filename, "r");
+    if (!file) {
+#ifdef _DEBUG_
+        Serial.println(F("Failed to open data file"));
+#endif
+        return;
+    }
 
-    // read configuration from FS json
+    // Extract each characters by one by one
+    while (file.available()) {
 #ifdef _DEBUG_
-    Serial.println(F("mounting FS..."));
-#endif
-
-    if (SPIFFS.begin()) {
-#ifdef _DEBUG_
-        Serial.println(F("Mounted file system"));
-#endif
-        if (SPIFFS.exists("/config.json")) {
-// File exists, reading and loading
-#ifdef _DEBUG_
-            Serial.println(F("Reading config file"));
-#endif
-            File configFile = SPIFFS.open("/config.json", "r");
-            if (configFile) {
-#ifdef _DEBUG_
-                Serial.println(F("Opened config file"));
-#endif
-                size_t size = configFile.size();
-                if (size > 1024) {
-#ifdef _DEBUG_
-                    Serial.println(F("Config file size is too large"));
-#endif
-                    return;
-                }
-                // Allocate a buffer to store contents of the file
-                std::unique_ptr<char[]> buf(new char[size]);
-                configFile.readBytes(buf.get(), size);
-
-                JsonDocument         json;
-                DeserializationError error = deserializeJson(json, buf.get());
-                if (error) {
-#ifdef _DEBUG_
-                    Serial.println(F("Failed to parse config file"));
-#endif
-                    return;
-                }
-#ifdef _DEBUG_
-                Serial.println(F("Parsed JSON"));
-#endif
-                strcpy(mqtt_server, json["mqtt_server"]);
-                strcpy(mqtt_port, json["mqtt_port"]);
-                strcpy(mqtt_user, json["mqtt_user"]);
-                strcpy(mqtt_pass, json["mqtt_pass"]);
-
-                if (json["ip"].is<const char*>()) {
-#ifdef _DEBUG_
-                    Serial.println(F("Setting custom IP from config"));
-#endif
-                    strcpy(static_ip, json["ip"]);
-                    strcpy(static_gw, json["gateway"]);
-                    strcpy(static_sn, json["subnet"]);
-                    strcpy(static_dns, json["dns"]);
-                } else {
-#ifdef _DEBUG_
-                    Serial.println(F("No custom IP in config"));
-#endif
-                }
-            } else {
-#ifdef _DEBUG_
-                Serial.println(F("Failed to open config file"));
-#endif
-            }
-        } else {
-#ifdef _DEBUG_
-            Serial.println(F("Config file does not exist"));
-#endif
-        }
-    } else {
-#ifdef _DEBUG_
-        Serial.println(F("Failed to mount FS"));
+        Serial.print((char)file.read());
 #endif
     }
-    // end read
+    Serial.println();
 
-    WiFiManagerParameter custom_mqtt_server("server", "MQTT Server", mqtt_server, 16);
-    WiFiManagerParameter custom_mqtt_port("port", "MQTT Port", mqtt_port, 6);
-    WiFiManagerParameter custom_mqtt_user("user", "MQTT User", mqtt_user, 16);
-    WiFiManagerParameter custom_mqtt_pass("pass", "MQTT Password", mqtt_pass, 16);
+    file.close();  // Close the file
+}
 
-    // WiFiManager
-    // Local intialization. Once its business is done, there is no need to keep it around
-    //   WiFiManager wifiManager;
+void deleteFile(fs::FS& fs, const char* path) {
+#ifdef _DEBUG_
+    Serial.print(F("Deleting file: "));
+    Serial.println(String(path) + "\r\n");
+#endif
+    if (fs.remove(path)) {
+#ifdef _DEBUG_
+        Serial.println(F("- file deleted"));
+#endif
+    } else {
+#ifdef _DEBUG_
+        Serial.println(F("- delete failed"));
+#endif
+    }
+}
 
-    // set config save notify callback
-    wifiManager.setSaveConfigCallback(saveConfigCallback);
+void wifiManagerSetup() {
+#ifdef _DEBUG_
+    Serial.println(F("Loading configuration..."));
+#endif
+    loadConfiguration(LittleFS, filename);
 
     // set static ip
-    //  wifiManager.setSTAStaticIPConfig(IPAddress(192, 168, 1, 101), IPAddress(192, 168, 1, 1), IPAddress(255, 255, 255, 0));
-    // Or
     IPAddress _ip, _gw, _sn, _dns;
     _ip.fromString(static_ip);
     _gw.fromString(static_gw);
@@ -411,96 +429,106 @@ void wifiManagerSetup() {
     wifiManager.setSTAStaticIPConfig(_ip, _gw, _sn, _dns);
 
     // add all your parameters here
-    wifiManager.addParameter(&custom_mqtt_server);
-    wifiManager.addParameter(&custom_mqtt_port);
-    wifiManager.addParameter(&custom_mqtt_user);
-    wifiManager.addParameter(&custom_mqtt_pass);
+    wifiManager.addParameter(&customMqttBroker);
+    wifiManager.addParameter(&customMqttPort);
+    wifiManager.addParameter(&customMqttUser);
+    wifiManager.addParameter(&customMqttPass);
 
-    // wifiManager.resetSettings();  // reset settings - for testing
-
-    wifiManager.setClass("invert");  // set dark theme
-    // wifiManager.setMinimumSignalQuality(30);  // defaults to 8% // set minimu quality of signal so it ignores AP's under that
-    // quality wifiManager.setTimeout(120);  // auto restart after the device can't connect to wifi within 120 seconds
-    wifiManager.setConfigPortalTimeout(60);  // auto close configportal after n seconds
-
-    // fetches ssid and pass and tries to connect
-    // if it does not connect it starts an access point with the specified name
-    // here  "AutoConnectAP"
-    // and goes into a blocking loop awaiting configuration
-    if (!wifiManager.autoConnect(deviceName, "password")) {
+    wifiManager.setDarkMode(true);
+    wifiManager.setConfigPortalTimeout(60);
+    // wifiManager.setConfigPortalBlocking(false);
 #ifdef _DEBUG_
-        Serial.println(F("failed to connect and hit timeout"));
+    Serial.println(F("Saving configuration..."));
 #endif
-        delay(3000);
-        // reset and try again, or maybe put it to deep sleep
-        ESP.restart();
-        delay(5000);
+    wifiManager.setSaveParamsCallback(saveConfigCallback);
+#ifdef _DEBUG_
+    Serial.println(F("Print config file..."));
+#endif
+    printFile(LittleFS, filename);
+
+#ifndef _DEBUG_
+    wifiManager.setDebugOutput(false);
+#endif
+
+    if (wifiManager.autoConnect(deviceName, "password")) {
+#ifdef _DEBUG_
+        Serial.println(F("WiFI is connected :D"));
+#endif
+
+    } else {
+#ifdef _DEBUG_
+        Serial.println(F("Configportal running"));
+#endif
     }
 
-// if you get here you have connected to the WiFi
-#ifdef _DEBUG_
-    Serial.println(F("WiFi connected...yeey :)"));
-#endif
-
-    // read updated parameters
-    strcpy(mqtt_server, custom_mqtt_server.getValue());
-    strcpy(mqtt_port, custom_mqtt_port.getValue());
-    strcpy(mqtt_user, custom_mqtt_user.getValue());
-    strcpy(mqtt_pass, custom_mqtt_pass.getValue());
-#ifdef _DEBUG_
-    Serial.println(F("The values in the file are: "));
-    Serial.println("\tmqtt_server : " + String(mqtt_server));
-    Serial.println("\tmqtt_port : " + String(mqtt_port));
-    Serial.println("\tmqtt_user : " + String(mqtt_user));
-    Serial.println("\tmqtt_pass : " + String(mqtt_pass));
-#endif
-
-    // save the custom parameters to FS
     if (shouldSaveConfig) {
-#ifdef _DEBUG_
-        Serial.println(F("saving config"));
-#endif
-        JsonDocument json;
-        json["mqtt_server"] = mqtt_server;
-        json["mqtt_port"]   = mqtt_port;
-        json["mqtt_user"]   = mqtt_user;
-        json["mqtt_pass"]   = mqtt_pass;
-        // Static IP
-        json["ip"]      = WiFi.localIP().toString();
-        json["gateway"] = WiFi.gatewayIP().toString();
-        json["subnet"]  = WiFi.subnetMask().toString();
-        json["dns"]     = WiFi.dnsIP().toString();
+        Serial.println(F("at saveParamsCallback()"));
+        // saveConfiguration(LittleFS, filename);
+        strcpy(mqttBroker, customMqttBroker.getValue());
+        strcpy(mqttPort, customMqttPort.getValue());
+        strcpy(mqttUser, customMqttUser.getValue());
+        strcpy(mqttPass, customMqttPass.getValue());
 
-        File configFile = SPIFFS.open("/config.json", "w");
-        if (!configFile) {
 #ifdef _DEBUG_
-            Serial.println(F("failed to open config file for writing"));
+        Serial.println(F("The values are updated."));
+#endif
+
+        // Delete existing file, otherwise the configuration is appended to the file
+        // LittleFS.remove(filename);
+        File file = LittleFS.open(filename, "w");
+        if (!file) {
+#ifdef _DEBUG_
+            Serial.println(F("Failed to open config file for writing"));
+#endif
+            return;
+        }
+
+        // Allocate a temporary JsonDocument
+        JsonDocument doc;
+        // Set the values in the document
+        doc["mqttBroker"] = mqttBroker;
+        doc["mqttPort"]   = mqttPort;
+        doc["mqttUser"]   = mqttUser;
+        doc["mqttPass"]   = mqttPass;
+
+        doc["ip"]      = WiFi.localIP().toString();
+        doc["gateway"] = WiFi.gatewayIP().toString();
+        doc["subnet"]  = WiFi.subnetMask().toString();
+        doc["dns"]     = WiFi.dnsIP().toString();
+
+        if (doc["mqttBroker"] != "") {
+            doc["mqttParameter"] = true;
+            mqttParameter        = doc["mqttParameter"];
+        }
+
+        // Serialize JSON to file
+        if (serializeJson(doc, file) == 0) {
+#ifdef _DEBUG_
+            Serial.println(F("Failed to write to file"));
+#endif
+        } else {
+#ifdef _DEBUG_
+            Serial.print(F("The configuration has been saved to "));
+            Serial.println(filename);
 #endif
         }
 
-        serializeJson(json, Serial);
-        serializeJson(json, configFile);
-        configFile.close();
-        // end save
+        file.close();  // Close the file
+
+        // mqttInit();
     }
-#ifdef _DEBUG_
-    Serial.println(F("local ip: "));
-    Serial.println(WiFi.localIP());
-    Serial.println(WiFi.gatewayIP());
-    Serial.println(WiFi.subnetMask());
-    Serial.println(WiFi.dnsIP());
-#endif
 }
 
 void resetWifiBtPressed(Button2& btn) {
     statusLed.turnON();
 #ifdef _DEBUG_
-    Serial.println(F("WiFi resetting started."));
+    Serial.println(F("Deleting the config file and resetting WiFi."));
 #endif
-    SPIFFS.format();
+    deleteFile(LittleFS, filename);
     wifiManager.resetSettings();
+    Serial.print(deviceName);
 #ifdef _DEBUG_
-    Serial.println(String(deviceName) + " is restarting.");
+    Serial.println(F(" is restarting."));
 #endif
     ESP.restart();
     delay(3000);
@@ -1079,7 +1107,7 @@ void reconnectMqtt() {
 #ifdef _DEBUG_
         Serial.print(F("Connecting MQTT... "));
 #endif
-        if (mqtt.connect(deviceName, mqtt_user, mqtt_pass)) {
+        if (mqtt.connect(deviceName, mqttUser, mqttPass)) {
             tReconnectMqtt.stop();
 #ifdef _DEBUG_
             Serial.println(F("connected"));
@@ -1154,7 +1182,9 @@ void printScd41Config(String prefix) {
 
 //******************************** Setup  ***********************************//
 void setup() {
+#ifdef _DEBUG_
     Serial.begin(115200);
+#endif
     statusLed.turnOFF();
     Wire.begin();
     pinMode(SQW_PIN, INPUT_PULLUP);
@@ -1162,8 +1192,13 @@ void setup() {
     resetWifiBt.begin(resetWifiBtPin);
     resetWifiBt.setLongClickTime(5000);
     resetWifiBt.setLongClickDetectedHandler(resetWifiBtPressed);
-
-
+    
+    while (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)) {
+#ifdef _DEBUG_
+        Serial.println(F("Failed to initialize LittleFS library"));
+#endif
+        delay(1000);
+    }
     // BME680
     iaqSensor.begin(BME68X_I2C_ADDR_LOW, Wire);
     iaqSensor.updateSubscription(sensorList, 13, BSEC_SAMPLE_RATE_LP);
@@ -1210,11 +1245,9 @@ void setup() {
     syncRtc();
     setupAlarm();
 
-    mqtt.setBufferSize(1024);  // Max buffer size = 1024 bytes (default: 256 bytes)
-    mqtt.setServer(mqtt_server, atoi(mqtt_port));
+    mqttInit();
 
     tWifiDisconnectedDetect.start();
-    tConnectMqtt.start();
 
 #ifndef _20SecTest
     tSgp41HeatingOff.start();
