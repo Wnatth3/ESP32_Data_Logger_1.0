@@ -1,15 +1,12 @@
 /*
-Log:
-
+Bug: When enable _DEBUG_ the LED status is not working.
 */
 
 #include <Arduino.h>
-#include <LittleFS.h>
 #include <FS.h>           //this needs to be first, or it all crashes and burns.../
-#include <WiFiManager.h>  //https://github.com/tzapu/WiFiManager
+#include <LittleFS.h>
 #include <ArduinoJson.h>  //https://github.com/bblanchon/ArduinoJson
-// WiFiManager
-// PubSubClient
+#include <WiFiManager.h>  //https://github.com/tzapu/WiFiManager
 #include <PubSubClient.h>
 // OTA
 #include <ESPmDNS.h>
@@ -41,10 +38,10 @@ Log:
 #include <Button2.h>
 
 //******************************** Configulation ****************************//
+#define FORMAT_LITTLEFS_IF_FAILED true
+
 #define _DEBUG_  // Uncomment this line if you want to debug
 // #define _20SecTest  // Uncomment this line if you want 20sec Sensors Test
-
-#define FORMAT_LITTLEFS_IF_FAILED true
 
 // -- Read Sensores every 5, 10, or 15 minutes -- //
 #define _5Min  // Uncomment this line if you want to read sensors every 5 minutes
@@ -62,8 +59,6 @@ bool mqttParameter;
 ezLED statusLed(led);
 
 //----------------- Reset WiFi Button ---------//
-// #define resetWifiPin 0
-// EasyButton resetWifiBt(resetWifiPin);
 #define resetWifiBtPin 0
 Button2 resetWifiBt;
 
@@ -373,7 +368,9 @@ void mqttInit() {
 }
 
 void saveConfigCallback() {
+#ifdef _DEBUG_
     Serial.println("Should save config");
+#endif
     shouldSaveConfig = true;
 }
 
@@ -435,7 +432,7 @@ void wifiManagerSetup() {
     wifiManager.addParameter(&customMqttPass);
 
     wifiManager.setDarkMode(true);
-    wifiManager.setConfigPortalTimeout(60);
+    // wifiManager.setConfigPortalTimeout(60);
     // wifiManager.setConfigPortalBlocking(false);
 #ifdef _DEBUG_
     Serial.println(F("Saving configuration..."));
@@ -446,15 +443,14 @@ void wifiManagerSetup() {
 #endif
     printFile(LittleFS, filename);
 
-#ifndef _DEBUG_
-    wifiManager.setDebugOutput(false);
-#endif
+    // #ifndef _DEBUG_
+    //     wifiManager.setDebugOutput(false);
+    // #endif
 
     if (wifiManager.autoConnect(deviceName, "password")) {
 #ifdef _DEBUG_
         Serial.println(F("WiFI is connected :D"));
 #endif
-
     } else {
 #ifdef _DEBUG_
         Serial.println(F("Configportal running"));
@@ -462,7 +458,7 @@ void wifiManagerSetup() {
     }
 
     if (shouldSaveConfig) {
-        Serial.println(F("at saveParamsCallback()"));
+        // Serial.println(F("at saveParamsCallback()"));
         // saveConfiguration(LittleFS, filename);
         strcpy(mqttBroker, customMqttBroker.getValue());
         strcpy(mqttPort, customMqttPort.getValue());
@@ -1182,9 +1178,6 @@ void printScd41Config(String prefix) {
 
 //******************************** Setup  ***********************************//
 void setup() {
-#ifdef _DEBUG_
-    Serial.begin(115200);
-#endif
     statusLed.turnOFF();
     Wire.begin();
     pinMode(SQW_PIN, INPUT_PULLUP);
@@ -1192,7 +1185,10 @@ void setup() {
     resetWifiBt.begin(resetWifiBtPin);
     resetWifiBt.setLongClickTime(5000);
     resetWifiBt.setLongClickDetectedHandler(resetWifiBtPressed);
-    
+    // #ifdef _DEBUG_
+    Serial.begin(115200);
+    // #endif
+
     while (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)) {
 #ifdef _DEBUG_
         Serial.println(F("Failed to initialize LittleFS library"));
@@ -1246,13 +1242,12 @@ void setup() {
     setupAlarm();
 
     mqttInit();
-
     tWifiDisconnectedDetect.start();
-
 #ifndef _20SecTest
     tSgp41HeatingOff.start();
 #endif
 }
+
 //******************************** Loop *************************************//
 void loop() {
     tWifiDisconnectedDetect.update();
