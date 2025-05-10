@@ -78,7 +78,7 @@ WiFiManager wifiManager;
 
 // //----------------- OTA Web Update ------------//
 #include "Ota.h"
-// 
+
 WebServer server(80);
 
 //*---------------- PubSubClient -------------//
