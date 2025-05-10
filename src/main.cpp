@@ -1023,6 +1023,8 @@ void IRAM_ATTR fetchData() {
 void wifiDisconnectedDetect() {
     if (WiFi.status() != WL_CONNECTED) {
         // ESP.restart();
+
+        
         WiFi.disconnect();
         WiFi.reconnect();
     }
