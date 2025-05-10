@@ -34,7 +34,7 @@
 #include <Button2.h>
 
 //******************************** Configulation ****************************//
-#define _DEBUG_  // Comment this line if you don't want to debug
+// #define _DEBUG_  // Comment this line if you don't want to debug
 #include "Debug.h"
 
 // -- Read Sensores every 5, 10, or 15 minutes -- //
@@ -582,7 +582,6 @@ bool checkMinMatch(int tMin) {
 void readScd41() {
     bool dataReady = false;
 
-#ifdef _DEBUG_
     scd41Error = scd41.getDataReadyStatus(dataReady);
     if (scd41Error != NO_ERROR) {
         _deF("Error trying to execute getDataReadyStatus(): ");
@@ -600,7 +599,6 @@ void readScd41() {
             return;
         }
     }
-    //
     // If ambient pressure compenstation during measurement
     // is required, you should call the respective functions here.
     // Check out the header file for the function definition.
@@ -611,18 +609,6 @@ void readScd41() {
         _deln(scd41ErrorMessage);
         return;
     }
-
-#else
-
-    scd41.getDataReadyStatus(dataReady);
-    while (!dataReady) {
-        delay(100);
-    }
-    // If ambient pressure compenstation during measurement
-    // is required, you should call the respective functions here.
-    // Check out the header file for the function definition.
-    scd41.readMeasurement(co2Scd41, tempScd41, humiScd41);
-#endif
 }
 
 void readSht40Sgp41() {
@@ -900,8 +886,6 @@ void IRAM_ATTR fetchData() {
 
 #else
 
-#ifdef _DEBUG_
-
 #ifdef _5Min
     _deF("5min Match: ");
 #endif
@@ -911,8 +895,8 @@ void IRAM_ATTR fetchData() {
 #ifdef _15Min
     _deF("15min Match: ");
 #endif
+
     _deln(checkMinMatch(tMin) ? "true" : "false");
-#endif
 
     if (checkMinMatch(tMin)) {
         readData();
@@ -928,7 +912,6 @@ void IRAM_ATTR fetchData() {
 //******************************** Task Functions ***************************//
 void wifiDisconnectedDetect() {
     if (WiFi.status() != WL_CONNECTED) {
-        // ESP.restart();
         WiFi.disconnect();
         WiFi.reconnect();
     }
@@ -974,9 +957,9 @@ void connectMqtt() {
 
 void checkSensor(bool condition, String sensorName) {
     if (condition) {
-        _deln(sensorName + " : " + "Available");
+        _deln(sensorName + ": Available");
     } else {
-        _deln(sensorName + " : " + "Failed!");
+        _deln(sensorName + ": Failed!");
     }
 }
 
@@ -984,7 +967,7 @@ void printScd41Config(String prefix) {
     float    tempOffset    = 0.0f;
     uint16_t tempOffsetRaw = 0, altitude = 0;
 
-    _de(prefix);
+    _deF(prefix);
     scd41.getTemperatureOffset(tempOffset);
     _deF(" tempOffset: ");
     _de(tempOffset, 2);
@@ -1003,6 +986,7 @@ void printScd41Config(String prefix) {
 
 //******************************** Setup  ***********************************//
 void setup() {
+    _serialBegin(115200);
     statusLed.turnOFF();
     Wire.begin();
     pinMode(SQW_PIN, INPUT_PULLUP);
@@ -1010,9 +994,6 @@ void setup() {
     resetWifiBt.begin(resetWifiBtPin);
     resetWifiBt.setLongClickTime(5000);
     resetWifiBt.setLongClickDetectedHandler(resetWifiBtPressed);
-    //
-    Serial.begin(115200);
-    // #endif
 
     while (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)) {
         _delnF("Failed to initialize LittleFS library");
@@ -1028,10 +1009,8 @@ void setup() {
     mySerial.begin(9600, SERIAL_8N1, rxPin2, txPin2);  // (Uno example) device to MH-Z19 serial start
     myMHZ19.begin(mySerial);                           // *Serial(Stream) reference must be passed to library begin().
     myMHZ19.autoCalibration();                         // Turn auto calibration ON (OFF autoCalibration(false))
-
     // PMSA003
     pms.init();
-
     // SCD41
     scd41.begin(Wire, SCD41_I2C_ADDR_62);
     scd41.wakeUp();
