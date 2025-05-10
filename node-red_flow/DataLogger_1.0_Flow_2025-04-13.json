@@ -1,0 +1,260 @@
+[
+    {
+        "id": "1bd30a481774536a",
+        "type": "tab",
+        "label": "DataLogger_1.0",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "dd2e2ec5cfbca8b7",
+        "type": "influxdb batch",
+        "z": "1bd30a481774536a",
+        "influxdb": "e25464d95617baba",
+        "precision": "",
+        "retentionPolicy": "",
+        "name": "rpi bucket",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "MyBiz",
+        "bucket": "rpi",
+        "x": 520,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "32a40a283648d1db",
+        "type": "mqtt in",
+        "z": "1bd30a481774536a",
+        "name": "",
+        "topic": "esp32/sensors/json",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "8db3fac0.99dd48",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 110,
+        "y": 80,
+        "wires": [
+            [
+                "66815e5843c57673",
+                "ceab2c0b1063dcf0",
+                "dd2e2ec5cfbca8b7",
+                "7ed329e28d1d434e"
+            ]
+        ]
+    },
+    {
+        "id": "66815e5843c57673",
+        "type": "function",
+        "z": "1bd30a481774536a",
+        "d": true,
+        "name": "function 1",
+        "func": "node.warn(typeof msg.payload);\nnode.warn(msg.payload);",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ceab2c0b1063dcf0",
+        "type": "debug",
+        "z": "1bd30a481774536a",
+        "name": "debug 2",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 520,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "7ed329e28d1d434e",
+        "type": "change",
+        "z": "1bd30a481774536a",
+        "name": "Extract tempBme680",
+        "rules": [
+            {
+                "t": "set",
+                "p": "payload",
+                "pt": "msg",
+                "to": "payload[1].fields.temp",
+                "tot": "msg"
+            }
+        ],
+        "action": "",
+        "property": "",
+        "from": "",
+        "to": "",
+        "reg": false,
+        "x": 160,
+        "y": 180,
+        "wires": [
+            [
+                "0585e5f93a65dfb9",
+                "4a7dbe8efbbb1103"
+            ]
+        ]
+    },
+    {
+        "id": "0585e5f93a65dfb9",
+        "type": "debug",
+        "z": "1bd30a481774536a",
+        "name": "debug 3",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 520,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "4a7dbe8efbbb1103",
+        "type": "trigger",
+        "z": "1bd30a481774536a",
+        "name": "",
+        "op1": "reset",
+        "op2": "true",
+        "op1type": "str",
+        "op2type": "bool",
+        "duration": "16",
+        "extend": true,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 130,
+        "y": 260,
+        "wires": [
+            [
+                "2ce2d54b582a02da",
+                "28fcba83c2c191c5"
+            ]
+        ]
+    },
+    {
+        "id": "2ce2d54b582a02da",
+        "type": "debug",
+        "z": "1bd30a481774536a",
+        "name": "debug 4",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 300,
+        "y": 320,
+        "wires": []
+    },
+    {
+        "id": "28fcba83c2c191c5",
+        "type": "trigger",
+        "z": "1bd30a481774536a",
+        "name": "",
+        "op1": "Don't recieve a value",
+        "op2": "0",
+        "op1type": "str",
+        "op2type": "str",
+        "duration": "-15",
+        "extend": false,
+        "overrideDelay": false,
+        "units": "min",
+        "reset": "reset",
+        "bytopic": "all",
+        "topic": "topic",
+        "outputs": 1,
+        "x": 330,
+        "y": 260,
+        "wires": [
+            [
+                "843f9e5d56f15b3d"
+            ]
+        ]
+    },
+    {
+        "id": "843f9e5d56f15b3d",
+        "type": "PushMessage_New",
+        "z": "1bd30a481774536a",
+        "name": "",
+        "lineConfig": "95c4c377036b0a2d",
+        "x": 560,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e25464d95617baba",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": "8086",
+        "protocol": "http",
+        "database": "_tasks",
+        "name": "",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://192.168.0.55:8086",
+        "timeout": "",
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "8db3fac0.99dd48",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "192.168.0.54",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "compatmode": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "95c4c377036b0a2d",
+        "type": "lineConfig",
+        "botName": "myMind",
+        "botIconUrl": ""
+    }
+]
